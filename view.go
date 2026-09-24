@@ -35,15 +35,19 @@ func (m model) View() string {
 		pvTitle = "Preview"
 	}
 
+	m.syncGraphics(inner, rows)
 	layout := tideui.Layout{
 		Width: m.width, Height: m.height, Mode: tideui.ThreeColumn,
-		ColumnRatios: columnRatios,
+		ColumnRatios: m.ratios(),
 		Panes: [3]tideui.Pane{
 			{Title: parentTitle, Content: m.renderList(m.parent, m.parentCursor, max(0, min(m.parentCursor-rows/2, len(m.parent)-rows)), inner[0], rows, false)},
 			{Title: title, Hint: hint, Focused: true, Content: m.renderList(m.entries, m.cursor, m.offset, inner[1], rows, true)},
 			{Title: pvTitle, Hint: m.pv.meta, Content: strings.Join(m.pv.lines, "\n"), ScrollOffset: m.pvScroll},
 		},
 		Status: &tideui.StatusBar{Left: m.statusLeft(), Right: statusHints},
+	}
+	if m.cfg.HidePreview {
+		layout.Mode, layout.SidebarRatio = tideui.SidebarOnly, 0.28
 	}
 	switch {
 	case m.pickerOpen:
@@ -120,4 +124,26 @@ func (m model) renderList(ents []entry, cursor, offset, width, rows int, main bo
 		lines = append(lines, m.renderer.RenderRow(row, width))
 	}
 	return strings.Join(lines, "\n")
+}
+
+// syncGraphics tells the terminal wrapper which out-of-band image (sixel or
+// kitty) belongs over the preview pane right now, if any.
+func (m model) syncGraphics(inner [3]int, rows int) {
+	img := m.pv.img
+	if m.gfx == nil || img == nil || m.pv.key != m.pvKey || m.modal != nil || m.pickerOpen || m.cfg.HidePreview {
+		if m.gfx != nil {
+			m.gfx.set(nil, "")
+		}
+		return
+	}
+	w := m.columnWidths()
+	left := w[0] + w[1] + 1 // past the pane's left border
+	const top = 2           // top border + header row
+	ov := &overlay{
+		row: top + max(0, (rows-img.rows)/2), col: left + max(0, (inner[2]-img.cols)/2),
+		seq: img.seq, kitty: m.proto == protoKitty,
+		clrRow: top, clrCol: left, clrCols: inner[2], clrRows: rows,
+	}
+	ov.key = fmt.Sprintf("%s@%d,%d", m.pv.key, ov.row, ov.col)
+	m.gfx.set(ov, m.theme.Bg)
 }

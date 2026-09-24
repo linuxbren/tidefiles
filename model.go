@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,7 +22,14 @@ const (
 	wheelStep    = 3
 )
 
-var columnRatios = [3]float64{0.20, 0.32, 0.48}
+const (
+	sidebarRatio        = 0.20
+	defaultPreviewRatio = 0.48
+	minPreviewRatio     = 0.20
+	maxPreviewRatio     = 0.75
+	ratioStep           = 0.04
+	previewDebounce     = 70 * time.Millisecond
+)
 
 type clipboard struct {
 	paths []string
@@ -63,6 +71,11 @@ type model struct {
 
 	themeMode string
 	theme     tideui.Theme
+	syn       syntax
+	gfx       *gfxOut
+	proto     gfxProto
+	cellW     int
+	cellH     int
 	sig       string
 	renderer  tideui.Renderer
 
@@ -92,10 +105,18 @@ type (
 		err  error
 	}
 	reloadMsg struct{}
+
+	previewTickMsg  struct{ key string }
+	previewReadyMsg struct{ pv preview }
 )
 
-func newModel(dir string, cfg config, cwdFile string) model {
+func newModel(dir string, cfg config, cwdFile string, gfx *gfxOut) model {
+	cw, ch := cellPixels()
 	m := model{
+		gfx:       gfx,
+		proto:     detectProto(),
+		cellW:     cw,
+		cellH:     ch,
 		cwd:       dir,
 		cfg:       cfg,
 		cursors:   map[string]string{},
@@ -110,7 +131,7 @@ func newModel(dir string, cfg config, cwdFile string) model {
 }
 
 func (m *model) applyTheme() {
-	m.theme = resolveTheme(m.themeMode)
+	m.theme, m.syn = resolveTheme(m.themeMode)
 	m.setRenderer(m.theme)
 	if m.themeMode == themeOmarchy {
 		m.sig = omarchy.Signature()
@@ -138,8 +159,23 @@ func writeTerm(s string) tea.Cmd {
 
 // ---- geometry ----------------------------------------------------------
 
-// columnWidths mirrors tideui's three-column split.
-func columnWidths(width int) [3]int {
+// ratios are the column shares: parent, current folder, preview.
+func (m model) ratios() [3]float64 {
+	p := m.cfg.PreviewRatio
+	return [3]float64{sidebarRatio, 1 - sidebarRatio - p, p}
+}
+
+// columnWidths mirrors tideui's column split (three columns, or two when the
+// preview is hidden).
+func (m model) columnWidths() [3]int {
+	width := m.width
+	if m.cfg.HidePreview {
+		a := max(1, min(width-1, int(float64(width)*0.28)))
+		if width <= 1 {
+			a = width
+		}
+		return [3]int{a, width - a, 0}
+	}
 	if width <= 2 {
 		var out [3]int
 		for i := 0; i < width; i++ {
@@ -147,7 +183,7 @@ func columnWidths(width int) [3]int {
 		}
 		return out
 	}
-	r := columnRatios
+	r := m.ratios()
 	total := r[0] + r[1] + r[2]
 	avail := width - 3
 	a := int(float64(avail) * r[0] / total)
@@ -157,7 +193,7 @@ func columnWidths(width int) [3]int {
 
 // geometry returns each pane's inner width and the number of body rows.
 func (m model) geometry() (inner [3]int, rows int) {
-	for i, w := range columnWidths(m.width) {
+	for i, w := range m.columnWidths() {
 		if w > 2 {
 			w -= 2
 		}
@@ -292,24 +328,56 @@ func (m *model) navigate(dir, focus string, record bool) {
 
 func (m *model) chdir(dir, focus string) { m.navigate(dir, focus, true) }
 
-func (m *model) refreshPreview() {
+func (m model) previewOpts() previewOpts {
+	inner, rows := m.geometry()
+	return previewOpts{width: inner[2], rows: rows, wrap: m.cfg.Wrap, hidden: m.cfg.ShowHidden,
+		proto: m.proto, cellW: m.cellW, cellH: m.cellH, bg: m.theme.Bg, syn: m.syn}
+}
+
+// refreshPreview makes the preview pane match the selection. Cheap kinds build
+// immediately; images, PDFs, archives and the like are built off the UI
+// goroutine after a short debounce so scrolling stays smooth.
+func (m *model) refreshPreview() tea.Cmd {
+	if m.cfg.HidePreview {
+		return nil
+	}
 	e, ok := m.current()
 	if !ok {
 		m.pv, m.pvKey, m.pvPath = preview{title: "Preview", lines: []string{"  (nothing selected)"}}, "", ""
-		return
+		return nil
 	}
-	inner, _ := m.geometry()
-	key := fmt.Sprintf("%s|%s|%d|%t|%t|%d", m.cwd, e.name, inner[2], m.cfg.Wrap, m.cfg.ShowHidden, e.mod.UnixNano())
+	o := m.previewOpts()
+	key := fmt.Sprintf("%s|%s|%d|%d|%t|%t|%d|%s|%dx%d|%s|%s", m.cwd, e.name, o.width, o.rows, o.wrap, o.hidden,
+		e.mod.UnixNano(), o.proto, o.cellW, o.cellH, o.bg, o.syn.kw)
 	if key == m.pvKey {
-		return
+		return nil
 	}
 	path := filepath.Join(m.cwd, e.name)
 	if path != m.pvPath {
 		m.pvScroll = 0
 	}
 	m.pvKey, m.pvPath = key, path
-	m.pv = buildPreview(m.cwd, e, inner[2], m.cfg.Wrap, m.cfg.ShowHidden)
-	m.clampPreviewScroll()
+	if !classify(e).async() {
+		m.pv = buildPreview(m.cwd, e, o)
+		m.pv.key = key
+		m.clampPreviewScroll()
+		return nil
+	}
+	m.pv = preview{key: key, title: e.name, meta: humanSize(e.size), lines: []string{"  loading…"}, loading: true}
+	return tea.Tick(previewDebounce, func(time.Time) tea.Msg { return previewTickMsg{key} })
+}
+
+func (m model) buildPreviewCmd(key string) tea.Cmd {
+	e, ok := m.current()
+	if !ok {
+		return nil
+	}
+	dir, o := m.cwd, m.previewOpts()
+	return func() tea.Msg {
+		pv := buildPreview(dir, e, o)
+		pv.key = key
+		return previewReadyMsg{pv}
+	}
 }
 
 func (m *model) clampPreviewScroll() {
@@ -330,12 +398,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		m.cellW, m.cellH = cellPixels()
 		m.fixOffset()
-		m.pvKey = ""
 	case statusMsg:
 		m.setMsg(msg.text, msg.err)
 	case reloadMsg:
 		m.reload(m.curName())
+	case previewTickMsg:
+		if msg.key == m.pvKey {
+			cmd = m.buildPreviewCmd(msg.key)
+		}
+	case previewReadyMsg:
+		if msg.pv.key == m.pvKey {
+			m.pv = msg.pv
+			m.clampPreviewScroll()
+		}
 	case opDoneMsg:
 		m.finishOp(msg.res)
 	case undoMsg:
@@ -366,8 +443,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m, cmd = m.handleKey(msg)
 		}
 	}
-	m.refreshPreview()
-	return m, cmd
+	return m, tea.Batch(cmd, m.refreshPreview())
 }
 
 func (m *model) finishOp(res opResult) {
@@ -603,6 +679,19 @@ func (m model) handleKey(msg tea.KeyMsg) (model, tea.Cmd) {
 		m.setMsg("refreshed", false)
 	case actTheme:
 		m.openPicker()
+	case actTogglePreview:
+		m.cfg.HidePreview = !m.cfg.HidePreview
+		m.cfg.save()
+		m.pvKey = ""
+		m.setMsg(map[bool]string{true: "preview hidden", false: "preview shown"}[m.cfg.HidePreview], false)
+	case actPreviewWider, actPreviewNarrower:
+		step := ratioStep
+		if keyIndex[msg.String()] == actPreviewNarrower {
+			step = -step
+		}
+		m.cfg.PreviewRatio = math.Round(max(minPreviewRatio, min(maxPreviewRatio, m.cfg.PreviewRatio+step))*100) / 100
+		m.cfg.HidePreview = false
+		m.cfg.save()
 	case actScrollDown:
 		m.pvScroll++
 		m.clampPreviewScroll()
@@ -622,7 +711,8 @@ func describe(ts []entry) string {
 // ---- theme picker ------------------------------------------------------
 
 func (m *model) openPicker() {
-	themes := append(append([]tideui.Theme(nil), tideui.BuiltinThemes...), resolveTheme(themeOmarchy))
+	omarchyT, _ := resolveTheme(themeOmarchy)
+	themes := append(append([]tideui.Theme(nil), tideui.BuiltinThemes...), omarchyT)
 	if themes[len(themes)-1].Name != "match-omarchy" {
 		themes = themes[:len(themes)-1]
 	}
@@ -662,13 +752,13 @@ func (m model) handleMouse(msg tea.MouseMsg) (model, tea.Cmd) {
 	if m.modal != nil || m.pickerOpen {
 		return m, nil
 	}
-	w := columnWidths(m.width)
+	w := m.columnWidths()
 	_, rows := m.geometry()
 	row := msg.Y - 2 // border + header
 	inRows := row >= 0 && row < rows
 	col := 0
 	switch {
-	case msg.X >= w[0]+w[1]:
+	case !m.cfg.HidePreview && msg.X >= w[0]+w[1]:
 		col = 2
 	case msg.X >= w[0]:
 		col = 1
@@ -719,6 +809,7 @@ func (m model) handleMouse(msg tea.MouseMsg) (model, tea.Cmd) {
 // ---- misc --------------------------------------------------------------
 
 func (m model) quit() tea.Cmd {
+	m.gfx.set(nil, "")
 	if m.cwdFile != "" {
 		_ = os.WriteFile(m.cwdFile, []byte(m.cwd), 0o600)
 	}

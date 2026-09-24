@@ -47,6 +47,9 @@ const (
 	actFilter
 	actRefresh
 	actTheme
+	actPreviewWider
+	actPreviewNarrower
+	actTogglePreview
 	actScrollDown
 	actScrollUp
 	actHelp
@@ -121,6 +124,9 @@ var bindingGroups = []bindingGroup{
 		{actSort, []string{"s"}, "s", "cycle sort: name, size, modified, type"},
 		{actSortRev, []string{"S"}, "S", "reverse sort"},
 		{actFilter, []string{"/"}, "/", "filter this folder"},
+		{actTogglePreview, []string{"p"}, "p", "show / hide preview"},
+		{actPreviewWider, []string{"shift+right"}, "shift+← / →", "narrower / wider preview"},
+		{actPreviewNarrower, []string{"shift+left"}, "", ""},
 		{actScrollDown, []string{"J"}, "J / K", "scroll preview"},
 		{actScrollUp, []string{"K"}, "", ""},
 		{actRefresh, []string{"ctrl+r"}, "ctrl+r", "refresh"},

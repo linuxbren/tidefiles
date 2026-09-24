@@ -24,7 +24,7 @@ func writeTemp(t *testing.T, name, content string) (string, entry) {
 
 func TestPreviewWrapsAtWordBoundaries(t *testing.T) {
 	dir, e := writeTemp(t, "a.txt", "the quick brown fox jumps over the lazy dog\n")
-	p := buildPreview(dir, e, 16, true, false)
+	p := buildPreview(dir, e, testOpts(16, true))
 	if len(p.lines) < 3 {
 		t.Fatalf("expected wrapped lines, got %q", p.lines)
 	}
@@ -40,7 +40,7 @@ func TestPreviewWrapsAtWordBoundaries(t *testing.T) {
 
 func TestPreviewNoWrapTruncates(t *testing.T) {
 	dir, e := writeTemp(t, "a.txt", strings.Repeat("x", 100)+"\n")
-	p := buildPreview(dir, e, 20, false, false)
+	p := buildPreview(dir, e, testOpts(20, false))
 	if len(p.lines) != 1 || ansi.StringWidth(p.lines[0]) > 20 {
 		t.Errorf("got %q", p.lines)
 	}
@@ -48,12 +48,41 @@ func TestPreviewNoWrapTruncates(t *testing.T) {
 
 func TestPreviewStripsEscapesAndDetectsBinary(t *testing.T) {
 	dir, e := writeTemp(t, "a.txt", "hi \x1b[31mred\x1b[0m\n")
-	p := buildPreview(dir, e, 40, true, false)
+	p := buildPreview(dir, e, testOpts(40, true))
 	if strings.ContainsRune(strings.Join(p.lines, ""), 0x1b) {
 		t.Errorf("escape leaked into preview: %q", p.lines)
 	}
 	dir, e = writeTemp(t, "b.bin", "abc\x00def")
-	if p := buildPreview(dir, e, 40, true, false); !strings.Contains(p.lines[0], "binary") {
+	if p := buildPreview(dir, e, testOpts(40, true)); !strings.Contains(p.lines[0], "binary") {
 		t.Errorf("expected binary notice, got %q", p.lines)
+	}
+}
+
+func testOpts(width int, wrap bool) previewOpts {
+	return previewOpts{width: width, rows: 20, wrap: wrap, proto: protoBlocks, cellW: 10, cellH: 20, bg: "#000000",
+		syn: syntax{fg: "#ffffff", kw: "#ff0000", str: "#00ff00", comment: "#888888"}}
+}
+
+func TestHighlightKeepsWrapWithinWidth(t *testing.T) {
+	dir, e := writeTemp(t, "a.go", "package main\n\n// a rather long comment line that must wrap inside the pane width\nfunc main() {}\n")
+	p := buildPreview(dir, e, testOpts(24, true))
+	if !strings.Contains(p.meta, "Go") {
+		t.Errorf("expected Go in meta, got %q", p.meta)
+	}
+	if !strings.Contains(strings.Join(p.lines, ""), "\x1b[") {
+		t.Error("expected ANSI highlighting")
+	}
+	for _, l := range p.lines {
+		if ansi.StringWidth(l) > 24 {
+			t.Errorf("line %q wider than 24", ansi.Strip(l))
+		}
+	}
+}
+
+func TestJSONIsPrettyPrinted(t *testing.T) {
+	dir, e := writeTemp(t, "a.json", `{"a":1,"b":[1,2]}`)
+	p := buildPreview(dir, e, testOpts(40, true))
+	if len(p.lines) < 4 {
+		t.Errorf("expected indented json, got %q", p.lines)
 	}
 }

@@ -14,9 +14,14 @@ type config struct {
 	Sort       string   `json:"sort,omitempty"`
 	SortDesc   bool     `json:"sort_desc,omitempty"`
 	Bookmarks  []string `json:"bookmarks,omitempty"`
+
+	PreviewRatio float64 `json:"preview_ratio,omitempty"` // share of the width given to the preview
+	HidePreview  bool    `json:"hide_preview,omitempty"`
 }
 
-func defaultConfig() config { return config{Theme: themeOmarchy, Wrap: true, Sort: "name"} }
+func defaultConfig() config {
+	return config{Theme: themeOmarchy, Wrap: true, Sort: "name", PreviewRatio: defaultPreviewRatio}
+}
 
 func configPath() string {
 	if p := os.Getenv("TIDEFILES_CONFIG"); p != "" {
@@ -38,6 +43,9 @@ func loadConfig() config {
 	}
 	if cfg.Theme == "" {
 		cfg.Theme = themeOmarchy
+	}
+	if cfg.PreviewRatio < minPreviewRatio || cfg.PreviewRatio > maxPreviewRatio {
+		cfg.PreviewRatio = defaultPreviewRatio
 	}
 	if cfg.Sort == "" {
 		cfg.Sort = "name"

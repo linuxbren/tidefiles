@@ -29,6 +29,11 @@ type Palette struct {
 	Surface    string // a slightly lighter surface for bars and modals
 	Error      string
 	Ok         string
+	Blue       string // extra hues, used for syntax highlighting
+	Cyan       string
+	Magenta    string
+	Yellow     string
+	Orange     string
 }
 
 func stateDir() string {
@@ -138,6 +143,11 @@ func fromMap(m map[string]string) (Palette, bool) {
 		Surface:    get("lighter_background", "lighter_bg", "color8"),
 		Error:      get("red", "color1"),
 		Ok:         get("green", "color2"),
+		Blue:       get("blue", "color4"),
+		Cyan:       get("cyan", "color6"),
+		Magenta:    get("magenta", "purple", "color5"),
+		Yellow:     get("yellow", "color3"),
+		Orange:     get("orange", "yellow", "color3"),
 	}
 	if p.Name == "" {
 		p.Name = themeName()

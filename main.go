@@ -36,7 +36,8 @@ func main() {
 	if *themeFlag != "" {
 		cfg.Theme = *themeFlag
 	}
-	if _, err := tea.NewProgram(newModel(abs, cfg, *cwdFile), tea.WithAltScreen(), tea.WithMouseCellMotion()).Run(); err != nil {
+	out := newGfxOut(os.Stdout)
+	if _, err := tea.NewProgram(newModel(abs, cfg, *cwdFile, out), tea.WithOutput(out), tea.WithAltScreen(), tea.WithMouseCellMotion()).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "tidefiles:", err)
 		os.Exit(1)
 	}

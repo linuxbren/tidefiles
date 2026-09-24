@@ -16,16 +16,16 @@ const themeOmarchy = "omarchy"
 // resolveTheme returns the tideui theme for mode: "omarchy" follows the live
 // Omarchy desktop theme (falling back to Catppuccin Mocha when Omarchy is not
 // present); anything else is a tideui built-in palette name.
-func resolveTheme(mode string) tideui.Theme {
-	if mode != themeOmarchy {
-		t, _ := tideui.ThemeByName(mode)
-		return t
+func resolveTheme(mode string) (tideui.Theme, syntax) {
+	if mode == themeOmarchy {
+		if p, ok := omarchy.Current(); ok {
+			t := omarchyTheme(p)
+			return t, fromOmarchy(p).readable(t.Bg)
+		}
+		mode = tideui.CatppuccinMocha.Name
 	}
-	p, ok := omarchy.Current()
-	if !ok {
-		return tideui.CatppuccinMocha
-	}
-	return omarchyTheme(p)
+	t, _ := tideui.ThemeByName(mode)
+	return t, fromTheme(t.Bg, t.Fg, t.BorderFocus, t.Unread, t.Error, t.Dimmed).readable(t.Bg)
 }
 
 func omarchyTheme(p omarchy.Palette) tideui.Theme {
