@@ -3,10 +3,15 @@
 A keyboard-first terminal file manager in the [TideMail](https://github.com/allisonhere/tidemail)
 family, built on [tideui](https://github.com/allisonhere/tideui) and Bubble Tea.
 
-- **Three panes** — parent, current directory, and a preview (yazi-style).
-- **Word-wrapped preview** — long lines wrap at word boundaries; `w` toggles to truncation.
-- **Shortcut strip + help** — common keys are always shown in the status bar; `?` opens the full list.
-- **Follows your Omarchy theme** — live, no restart when you switch themes. Use `--theme <name>` for a fixed tideui palette.
+- **Three panes** — parent, current folder, and a preview (yazi-style).
+- **Word-wrapped preview** — long lines wrap at word boundaries; `w` toggles truncation.
+- **Shortcut strip + help** — common keys are always in the status bar; `?` opens the full list.
+- **Follows your Omarchy theme** — live, no restart. `T` opens a theme picker.
+- **A modern file manager's toolbox** — select, copy / cut / paste (interoperates with Nautilus via the
+  Wayland clipboard), trash with **undo**, rename, new file/folder, properties, open with…, places and
+  bookmarks, back/forward history, filter, sort, terminal here, mouse support.
+- **Safe by default** — paste never overwrites (conflicts become `name (copy)`), delete goes to the
+  freedesktop trash, and permanent delete asks first.
 
 ## Run
 
@@ -15,7 +20,11 @@ go run . [dir]
 go run . --cwd-file /tmp/tidefiles.cwd   # write final dir on quit, for a cd-on-exit shell wrapper
 ```
 
+Settings (theme, hidden files, wrap, sort, bookmarks) are remembered in
+`~/.config/tidefiles/config.json`.
+
 ## Keys
 
-Press `?` in the app. Highlights: `h j k l` move, `enter` open, `e` edit, `.` hidden files,
-`w` wrap, `J`/`K` scroll preview, `q` quit.
+Arrow keys first; vim keys work too. Press `?` in the app for the full list.
+`space` select · `c`/`x`/`v` copy/cut/paste · `d` trash · `ctrl+z` undo · `F2` rename ·
+`n`/`N` new file/folder · `/` filter · `s` sort · `b` places · `i` properties · `o` open with · `T` theme.

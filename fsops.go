@@ -53,6 +53,39 @@ func readDir(dir string, showHidden bool) ([]entry, error) {
 	return out, nil
 }
 
+// sortEntries orders ents in place: directories first, then by key ("name",
+// "size", "modified" or "type"), optionally reversed within each group.
+func sortEntries(ents []entry, key string, desc bool) {
+	ext := func(e entry) string { return strings.ToLower(filepath.Ext(e.name)) }
+	less := func(a, b entry) bool {
+		switch key {
+		case "size":
+			if a.size != b.size {
+				return a.size < b.size
+			}
+		case "modified":
+			if !a.mod.Equal(b.mod) {
+				return a.mod.After(b.mod) // newest first when ascending
+			}
+		case "type":
+			if ea, eb := ext(a), ext(b); ea != eb {
+				return ea < eb
+			}
+		}
+		return strings.ToLower(a.name) < strings.ToLower(b.name)
+	}
+	sort.SliceStable(ents, func(i, j int) bool {
+		a, b := ents[i], ents[j]
+		if a.isDir != b.isDir {
+			return a.isDir
+		}
+		if desc {
+			return less(b, a)
+		}
+		return less(a, b)
+	})
+}
+
 func humanSize(n int64) string {
 	const unit = 1024
 	if n < unit {

@@ -2,59 +2,11 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/allisonhere/tideui"
 )
-
-// statusHints is the always-visible shortcut strip. "? all keys" leads so it
-// survives truncation on narrow terminals.
-const statusHints = "? all keys  ↑↓ move  ← back  →/enter open  e edit  . hidden  w wrap  q quit"
-
-type helpGroup struct {
-	title string
-	keys  [][2]string
-}
-
-var helpGroups = []helpGroup{
-	{"Move", [][2]string{
-		{"↑ / ↓", "up / down  (also k / j)"},
-		{"←  backspace", "parent directory  (also h)"},
-		{"→  enter", "open directory or file  (also l)"},
-		{"g / G", "top / bottom"},
-		{"ctrl+d / ctrl+u", "half page down / up"},
-		{"pgdn / pgup", "full page"},
-		{"~", "home directory"},
-	}},
-	{"Files", [][2]string{
-		{"enter / l", "open with default app"},
-		{"e", "edit in $EDITOR"},
-		{"r", "refresh"},
-	}},
-	{"View", [][2]string{
-		{".", "toggle hidden files"},
-		{"w", "toggle preview word wrap"},
-		{"J / K", "scroll preview"},
-	}},
-	{"App", [][2]string{
-		{"?", "toggle this help"},
-		{"q  ctrl+c", "quit"},
-	}},
-}
-
-func (m model) helpContent() string {
-	var b strings.Builder
-	for i, g := range helpGroups {
-		if i > 0 && m.height >= 30 {
-			b.WriteString("\n")
-		}
-		b.WriteString(m.renderer.Styles.DetailMeta.Render(g.title) + "\n")
-		for _, k := range g.keys {
-			fmt.Fprintf(&b, "  %-18s %s\n", k[0], k[1])
-		}
-	}
-	return strings.TrimRight(b.String(), "\n")
-}
 
 func (m model) View() string {
 	if m.width == 0 || m.height == 0 {
@@ -62,13 +14,21 @@ func (m model) View() string {
 	}
 	inner, rows := m.geometry()
 
-	parentTitle := ""
-	if len(m.parent) > 0 || m.cwd != "/" {
-		parentTitle = tildePathBase(m.cwd)
+	parentTitle := tildePath(filepath.Dir(m.cwd))
+	hint := fmt.Sprintf("%d/%d", min(m.cursor+1, len(m.entries)), len(m.entries))
+	if m.cfg.Sort != "name" || m.cfg.SortDesc {
+		arrow := "↑"
+		if m.cfg.SortDesc {
+			arrow = "↓"
+		}
+		hint = m.cfg.Sort + arrow + "  " + hint
 	}
-	hint := ""
-	if len(m.entries) > 0 {
-		hint = fmt.Sprintf("%d/%d", m.cursor+1, len(m.entries))
+	if m.filter != "" {
+		hint = "/" + m.filter + "  " + hint
+	}
+	title := tildePath(m.cwd)
+	if m.inTrash() {
+		title = "Trash"
 	}
 	pvTitle := m.pv.title
 	if pvTitle == "" {
@@ -79,24 +39,22 @@ func (m model) View() string {
 		Width: m.width, Height: m.height, Mode: tideui.ThreeColumn,
 		ColumnRatios: columnRatios,
 		Panes: [3]tideui.Pane{
-			{Title: parentTitle, Content: m.renderList(m.parent, m.parentCursor, m.parentOffset(rows), inner[0], rows, false)},
-			{Title: tildePath(m.cwd), Hint: hint, Focused: true,
-				Content: m.renderList(m.entries, m.cursor, m.offset, inner[1], rows, true)},
+			{Title: parentTitle, Content: m.renderList(m.parent, m.parentCursor, max(0, min(m.parentCursor-rows/2, len(m.parent)-rows)), inner[0], rows, false)},
+			{Title: title, Hint: hint, Focused: true, Content: m.renderList(m.entries, m.cursor, m.offset, inner[1], rows, true)},
 			{Title: pvTitle, Hint: m.pv.meta, Content: strings.Join(m.pv.lines, "\n"), ScrollOffset: m.pvScroll},
 		},
 		Status: &tideui.StatusBar{Left: m.statusLeft(), Right: statusHints},
 	}
-	if m.help {
-		layout.Modal = &tideui.Overlay{
-			Visible: true, Title: "Keybindings", Content: m.helpContent(),
-			Footer: "? or esc to close", Width: 58,
-		}
+	switch {
+	case m.pickerOpen:
+		h := max(6, m.height-4)
+		ov := m.picker.SoftModal(m.renderer, min(40, m.width-4), h, "tidefiles")
+		layout.Modal = &ov
+	case m.modal != nil:
+		ov := m.modalOverlay()
+		layout.Modal = &ov
 	}
 	return m.renderer.Render(layout)
-}
-
-func (m model) parentOffset(rows int) int {
-	return max(0, min(m.parentCursor-rows/2, len(m.parent)-rows))
 }
 
 func (m model) statusLeft() string {
@@ -106,8 +64,20 @@ func (m model) statusLeft() string {
 		}
 		return m.msg
 	}
-	e, ok := m.selected()
+	if n := len(m.selected); n > 0 {
+		var total int64
+		for _, e := range m.all {
+			if m.selected[e.name] && !e.isDir {
+				total += e.size
+			}
+		}
+		return fmt.Sprintf("%d selected  %s", n, humanSize(total))
+	}
+	e, ok := m.current()
 	if !ok {
+		if m.filter != "" {
+			return "no matches — esc clears the filter"
+		}
 		return ""
 	}
 	if e.isDir {
@@ -116,9 +86,20 @@ func (m model) statusLeft() string {
 	return fmt.Sprintf("%s  %s  %s", e.mode, humanSize(e.size), e.mod.Format("2006-01-02 15:04"))
 }
 
-func (m model) renderList(ents []entry, cursor, offset, width, rows int, sizes bool) string {
+func (m model) renderList(ents []entry, cursor, offset, width, rows int, main bool) string {
 	if len(ents) == 0 {
+		if main && m.filter != "" {
+			return "  (no matches)"
+		}
 		return "  (empty)"
+	}
+	cutSet := map[string]bool{}
+	if main && m.clip.cut {
+		for _, p := range m.clip.paths {
+			if filepath.Dir(p) == m.cwd {
+				cutSet[filepath.Base(p)] = true
+			}
+		}
 	}
 	end := min(len(ents), offset+rows)
 	lines := make([]string, 0, end-offset)
@@ -128,21 +109,15 @@ func (m model) renderList(ents []entry, cursor, offset, width, rows int, sizes b
 		if e.isDir {
 			name += "/"
 		}
-		row := tideui.Row{Prefix: " ", Text: sanitize(name), Selected: i == cursor, Muted: e.hidden()}
-		if sizes && !e.isDir && width >= 28 {
+		prefix := " "
+		if main && m.selected[e.name] {
+			prefix = "✓"
+		}
+		row := tideui.Row{Prefix: prefix + " ", Text: sanitize(name), Selected: i == cursor, Muted: e.hidden() || cutSet[e.name]}
+		if main && !e.isDir && width >= 28 {
 			row.Suffix = humanSize(e.size) + " "
 		}
 		lines = append(lines, m.renderer.RenderRow(row, width))
 	}
 	return strings.Join(lines, "\n")
-}
-
-func tildePathBase(cwd string) string {
-	parent := cwd
-	if i := strings.LastIndex(cwd, "/"); i > 0 {
-		parent = cwd[:i]
-	} else {
-		parent = "/"
-	}
-	return tildePath(parent)
 }

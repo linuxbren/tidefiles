@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	themeMode := flag.String("theme", themeOmarchy, `theme: "omarchy" (follow the desktop) or a tideui palette name`)
+	themeFlag := flag.String("theme", "", `theme: "omarchy" (follow the desktop) or a tideui palette name (default: saved choice)`)
 	cwdFile := flag.String("cwd-file", "", "write the final directory to this file on exit (for shell cd-on-quit)")
 	flag.Parse()
 
@@ -32,7 +32,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if _, err := tea.NewProgram(newModel(abs, *themeMode, *cwdFile), tea.WithAltScreen()).Run(); err != nil {
+	cfg := loadConfig()
+	if *themeFlag != "" {
+		cfg.Theme = *themeFlag
+	}
+	if _, err := tea.NewProgram(newModel(abs, cfg, *cwdFile), tea.WithAltScreen(), tea.WithMouseCellMotion()).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "tidefiles:", err)
 		os.Exit(1)
 	}
