@@ -11,7 +11,7 @@ family, built on [tideui](https://github.com/allisonhere/tideui) and Bubble Tea.
 - **Shortcut strip + help** — common keys are always in the status bar; `?` opens the full list.
 - **Follows your Omarchy theme** — live, no restart. `T` opens a theme picker.
 - **A modern file manager's toolbox** — select, copy / cut / paste (the system clipboard gets file lists
-  for file managers, paths for terminals, and the image itself when you copy one picture), trash with **undo**, rename, new file/folder, properties, open with…, places and
+  for file managers and paths for terminals; `C` copies a picture itself for browsers and chat apps), trash with **undo**, rename, new file/folder, properties, open with…, places and
   bookmarks, back/forward history, filter, sort, terminal here, mouse support.
 - **Safe by default** — paste never overwrites (conflicts become `name (copy)`), delete goes to the
   freedesktop trash, and permanent delete asks first.
