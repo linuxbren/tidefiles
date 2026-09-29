@@ -40,7 +40,12 @@ func main() {
 		cfg.Theme = *themeFlag
 	}
 	out := newGfxOut(os.Stdout)
-	if _, err := tea.NewProgram(newModel(abs, cfg, *cwdFile, out), tea.WithOutput(out), tea.WithAltScreen(), tea.WithMouseCellMotion()).Run(); err != nil {
+	// Save the window title and put it back on exit, so a shell left in this
+	// window isn't mistaken for tidefiles.
+	fmt.Fprint(os.Stdout, "\x1b[22;0t")
+	_, err = tea.NewProgram(newModel(abs, cfg, *cwdFile, out), tea.WithOutput(out), tea.WithAltScreen(), tea.WithMouseCellMotion()).Run()
+	fmt.Fprint(os.Stdout, "\x1b[23;0t")
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "tidefiles:", err)
 		os.Exit(1)
 	}

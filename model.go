@@ -56,6 +56,7 @@ type model struct {
 	cursors  map[string]string // dir -> last selected name, restored on re-entry
 	selected map[string]bool   // names in cwd
 	clip     clipboard
+	titleDir string // folder the window title was last set for
 	undo     []undoItem
 
 	hist []string
@@ -145,6 +146,12 @@ func (m *model) setRenderer(t tideui.Theme) {
 func (m model) Init() tea.Cmd {
 	return tea.Batch(writeTerm(setTerminalBg(m.theme)), tick())
 }
+
+// windowTitle names the terminal window. Omarchy's Super+C override in
+// ~/.config/hypr/bindings.lua recognises tidefiles by this prefix.
+func windowTitle(dir string) string { return titlePrefix + tildePath(dir) }
+
+const titlePrefix = "tidefiles — "
 
 func tick() tea.Cmd { return tea.Tick(tickInterval, func(time.Time) tea.Msg { return tickMsg{} }) }
 
@@ -442,6 +449,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			m, cmd = m.handleKey(msg)
 		}
+	}
+	if m.cwd != m.titleDir {
+		m.titleDir = m.cwd
+		cmd = tea.Batch(cmd, tea.SetWindowTitle(windowTitle(m.cwd)))
 	}
 	return m, tea.Batch(cmd, m.refreshPreview())
 }
