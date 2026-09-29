@@ -100,9 +100,12 @@ var bindingGroups = []bindingGroup{
 		{actEscape, []string{"esc"}, "esc", "clear selection / filter"},
 	}},
 	{"Files", []binding{
-		{actCopy, []string{"c", "ctrl+y"}, "c", "copy  (also SUPER+C)"},
-		{actCut, []string{"x", "ctrl+x"}, "x", "cut  (also SUPER+X)"},
-		{actPaste, []string{"v", "ctrl+v"}, "v", "paste  (also SUPER+V; works with other apps)"},
+		// SUPER+C/X/V are Omarchy's system-wide shortcuts and lead in the docs;
+		// they arrive as ctrl+y (via contrib/omarchy-super-c.lua), ctrl+x and a
+		// terminal paste. c/x/v stay as a fallback that needs no desktop setup.
+		{actCopy, []string{"c", "ctrl+y"}, "SUPER+C  c", "copy"},
+		{actCut, []string{"x", "ctrl+x"}, "SUPER+X  x", "cut"},
+		{actPaste, []string{"v", "ctrl+v"}, "SUPER+V  v", "paste  (works with other apps)"},
 		{actTrash, []string{"d", "delete"}, "d  delete", "move to trash"},
 		{actDelete, []string{"D", "shift+delete"}, "D", "delete permanently"},
 		{actRename, []string{"f2", "r"}, "F2  r", "rename"},
@@ -154,4 +157,4 @@ var keyIndex = func() map[string]action {
 
 // statusHints is the always-visible shortcut strip. "? all keys" leads so it
 // survives truncation on narrow terminals.
-const statusHints = "? all keys  ↑↓←→ navigate  space select  c x v (+SUPER) copy cut paste  d trash  F2 rename  / filter  q quit"
+const statusHints = "? all keys  ↑↓←→ navigate  space select  SUPER+C/X/V copy cut paste  d trash  F2 rename  / filter  q quit"

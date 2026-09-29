@@ -33,5 +33,10 @@ Settings (theme, hidden files, wrap, sort, bookmarks) are remembered in
 ## Keys
 
 Arrow keys first; vim keys work too. Press `?` in the app for the full list.
-`space` select · `c`/`x`/`v` copy/cut/paste · `d` trash · `ctrl+z` undo · `F2` rename ·
+`space` select · `SUPER+C`/`X`/`V` copy/cut/paste (plain `c`/`x`/`v` work too) · `d` trash · `ctrl+z` undo · `F2` rename ·
 `n`/`N` new file/folder · `/` filter · `s` sort · `b` places · `i` properties · `P` permissions · `o` open with · `T` theme.
+
+On Omarchy, `SUPER+V` and `SUPER+X` work out of the box. `SUPER+C` needs one Hyprland
+snippet, because foot keeps the key Omarchy sends for itself: append
+[`contrib/omarchy-super-c.lua`](contrib/omarchy-super-c.lua) to `~/.config/hypr/bindings.lua`.
+Without it, use `c`.
