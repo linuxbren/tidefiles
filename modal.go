@@ -286,7 +286,7 @@ func (m model) handleModalKey(msg tea.KeyMsg) (model, tea.Cmd) {
 		switch key {
 		case "?", "esc", "q", "enter", "i":
 			m.modal = nil
-		case "P", "p": // the hint renders lowercase
+		case "P": // same key as in the file list; p is preview there
 			if md.purpose == "props" {
 				m.openPerms()
 			}
@@ -439,7 +439,8 @@ func (m model) modalOverlay() tideui.Overlay {
 		body = append(body, md.lines...)
 		h := []tideui.SoftHint{{Key: "esc", Label: "close"}}
 		if md.purpose == "props" {
-			h = append(h, tideui.SoftHint{Key: "P", Label: "change permissions"})
+			// Soft hints are rendered lowercase, so spell the capital out.
+			h = append(h, tideui.SoftHint{Key: "shift+p", Label: "change permissions"})
 		}
 		body = append(body, "", hints(h...))
 	case mPerms:

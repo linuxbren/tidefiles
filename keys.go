@@ -112,7 +112,7 @@ var bindingGroups = []bindingGroup{
 		{actRestore, []string{"R"}, "R", "restore from trash"},
 		{actEmptyTrash, []string{"E"}, "E", "empty trash"},
 		{actProps, []string{"i"}, "i", "properties"},
-		{actPerms, []string{"P"}, "P", "permissions (chmod)"},
+		{actPerms, []string{"P"}, "P", "permissions (chmod), here or in properties"},
 		{actCopyPath, []string{"y"}, "y", "copy path as text"},
 	}},
 	{"Open", []binding{
