@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -417,61 +416,4 @@ func emptyTrash() opResult {
 		}
 	}
 	return opResult{desc: "Trash emptied (" + plural(n, "item") + ")"}
-}
-
-// ---- system clipboard (Nautilus/Thunar compatible file lists) ----------
-
-const clipType = "x-special/gnome-copied-files"
-
-// Variables so tests can stub the desktop.
-var (
-	clipWrite = func(cut bool, paths []string) error {
-		verb := "copy"
-		if cut {
-			verb = "cut"
-		}
-		var b strings.Builder
-		b.WriteString(verb)
-		for _, p := range paths {
-			b.WriteString("\nfile://" + (&url.URL{Path: p}).EscapedPath())
-		}
-		return runWithStdin(b.String(), "wl-copy", "--type", clipType)
-	}
-	clipRead = func() (paths []string, cut bool, ok bool) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		out, err := exec.CommandContext(ctx, "wl-paste", "--no-newline", "--type", clipType).Output()
-		if err != nil {
-			return nil, false, false
-		}
-		return parseClip(string(out))
-	}
-	textWrite = func(s string) error { return runWithStdin(s, "wl-copy") }
-)
-
-func runWithStdin(input, name string, args ...string) error {
-	bin, err := exec.LookPath(name)
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, bin, args...)
-	cmd.Stdin = strings.NewReader(input)
-	return cmd.Run()
-}
-
-func parseClip(s string) (paths []string, cut bool, ok bool) {
-	lines := strings.Split(strings.TrimSpace(s), "\n")
-	if len(lines) < 2 || (lines[0] != "copy" && lines[0] != "cut") {
-		return nil, false, false
-	}
-	for _, l := range lines[1:] {
-		u, err := url.Parse(strings.TrimSpace(l))
-		if err != nil || u.Scheme != "file" || u.Path == "" {
-			continue
-		}
-		paths = append(paths, u.Path)
-	}
-	return paths, lines[0] == "cut", len(paths) > 0
 }

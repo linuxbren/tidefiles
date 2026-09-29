@@ -13,6 +13,9 @@ import (
 )
 
 func main() {
+	if os.Getenv(clipServeEnv) != "" { // re-exec'd to own the clipboard
+		os.Exit(serveClipboard())
+	}
 	themeFlag := flag.String("theme", "", `theme: "omarchy" (follow the desktop) or a tideui palette name (default: saved choice)`)
 	cwdFile := flag.String("cwd-file", "", "write the final directory to this file on exit (for shell cd-on-quit)")
 	flag.Parse()

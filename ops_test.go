@@ -144,16 +144,6 @@ func TestRenameCreateUndo(t *testing.T) {
 	}
 }
 
-func TestParseClip(t *testing.T) {
-	paths, cut, ok := parseClip("cut\nfile:///tmp/a%20b\nfile:///tmp/c")
-	if !ok || !cut || len(paths) != 2 || paths[0] != "/tmp/a b" {
-		t.Fatalf("got %v %v %v", paths, cut, ok)
-	}
-	if _, _, ok := parseClip("garbage"); ok {
-		t.Fatal("garbage should not parse")
-	}
-}
-
 func TestSortEntries(t *testing.T) {
 	ents := []entry{{name: "b.txt", size: 5}, {name: "a", isDir: true}, {name: "c.go", size: 9}}
 	sortEntries(ents, "size", true)

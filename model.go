@@ -567,12 +567,18 @@ func (m model) handleKey(msg tea.KeyMsg) (model, tea.Cmd) {
 		}
 		cut := keyIndex[msg.String()] == actCut
 		m.clip = clipboard{paths, cut}
-		verb := "Copied"
+		verb, doing := "Copied", "copying…"
 		if cut {
-			verb = "Cut"
+			verb, doing = "Cut", "cutting…"
 		}
-		m.setMsg(verb+" "+plural(len(paths), "item")+" — press v to paste", false)
-		return m, func() tea.Msg { _ = clipWrite(cut, paths); return nil }
+		done := verb + " " + plural(len(paths), "item") + " — press v to paste"
+		m.setMsg(doing, false)
+		return m, func() tea.Msg {
+			if err := clipWrite(cut, paths); err != nil {
+				return statusMsg{done + " here only (system clipboard: " + err.Error() + ")", true}
+			}
+			return statusMsg{done, false}
+		}
 	case actPaste:
 		dir, internal := m.cwd, m.clip
 		return m, m.run(func() opResult {
@@ -645,8 +651,12 @@ func (m model) handleKey(msg tea.KeyMsg) (model, tea.Cmd) {
 		paths := m.targetPaths()
 		if len(paths) > 0 {
 			text := strings.Join(paths, "\n")
-			m.setMsg("Copied path", false)
-			return m, func() tea.Msg { _ = textWrite(text); return nil }
+			return m, func() tea.Msg {
+				if err := textWrite(text); err != nil {
+					return statusMsg{"copy path failed: " + err.Error(), true}
+				}
+				return statusMsg{"Copied " + plural(len(paths), "path"), false}
+			}
 		}
 	case actHidden:
 		m.cfg.ShowHidden = !m.cfg.ShowHidden
