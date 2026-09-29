@@ -57,18 +57,31 @@ func TestFileOffersFormats(t *testing.T) {
 	}
 }
 
-func TestFileOffersImage(t *testing.T) {
+func TestImageOffers(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "shot.png")
 	writeTestImage(t, p, func(f *os.File, img image.Image) error { return png.Encode(f, img) })
 	raw, _ := os.ReadFile(p)
-	if m := offerMap(fileOffers(false, []string{p})); m[pngType] != string(raw) {
-		t.Fatal("single png should be offered as its own bytes")
+	// Nautilus pastes any clipboard image as a new "Pasted image.png" ahead of
+	// the file list, so copying an image file must not carry its pixels.
+	if _, ok := offerMap(fileOffers(false, []string{p}))[pngType]; ok {
+		t.Fatal("file copy must not offer image/png")
 	}
-	q := filepath.Join(dir, "other.png")
-	writeTestImage(t, q, func(f *os.File, img image.Image) error { return png.Encode(f, img) })
-	if _, ok := offerMap(fileOffers(false, []string{p, q}))[pngType]; ok {
-		t.Fatal("multi-file copy must not offer image/png")
+	offers, err := imageOffers(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := offerMap(offers)
+	if m[pngType] != string(raw) || m["text/plain"] != p {
+		t.Fatalf("image offers: png=%v text=%q", m[pngType] == string(raw), m["text/plain"])
+	}
+	if _, ok := m[clipType]; ok {
+		t.Fatal("image copy is not a file copy")
+	}
+	txt := filepath.Join(dir, "notes.txt")
+	mkfile(t, txt, "hi")
+	if _, err := imageOffers(txt); err == nil {
+		t.Fatal("text file is not an image")
 	}
 }
 

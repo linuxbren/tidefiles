@@ -2,8 +2,13 @@ package main
 
 // System clipboard. A copy is offered in several formats at once so whatever
 // app pastes it finds one it understands: file managers take the GNOME file
-// list or text/uri-list, terminals and editors take the paths as text, and
-// image-paste targets (chat apps, Claude Code's ctrl+v) take image/png.
+// list or text/uri-list, terminals and editors take the paths as text (Claude
+// Code attaches a pasted image path as the image).
+//
+// A file copy never carries image data: Nautilus pastes any image on the
+// clipboard as a new "Pasted image.png" in preference to the file list, so an
+// image file would arrive renamed. Copying the picture itself (for browsers
+// and chat apps) is a separate command, imageOffers.
 //
 // Serving several types from one copy needs the Wayland data-control protocol,
 // which wl-copy cannot do. The selection is owned by a detached copy of this
@@ -47,7 +52,14 @@ type clipOffer = wlclipboard.Offer
 
 // Variables so tests can stub the desktop.
 var (
-	clipWrite = func(cut bool, paths []string) error { return setClipboard(fileOffers(cut, paths)) }
+	clipWrite  = func(cut bool, paths []string) error { return setClipboard(fileOffers(cut, paths)) }
+	imageWrite = func(path string) error {
+		offers, err := imageOffers(path)
+		if err != nil {
+			return err
+		}
+		return setClipboard(offers)
+	}
 	textWrite = func(s string) error { return setClipboard(wlclipboard.TextOffers(s)) }
 	clipRead  = readClipboardFiles
 )
@@ -66,12 +78,17 @@ func fileOffers(cut bool, paths []string) []clipOffer {
 		{MimeType: clipType, Data: []byte(verb + "\n" + strings.Join(uris, "\n"))},
 		{MimeType: uriListType, Data: []byte(strings.Join(uris, "\r\n") + "\r\n")},
 	}
-	if len(paths) == 1 {
-		if data, ok := clipPNG(paths[0]); ok {
-			offers = append(offers, clipOffer{MimeType: pngType, Data: data})
-		}
-	}
 	return append(offers, wlclipboard.TextOffers(strings.Join(paths, "\n"))...)
+}
+
+// imageOffers puts a picture itself on the clipboard as image/png, with its
+// path as the text form.
+func imageOffers(path string) ([]clipOffer, error) {
+	data, ok := clipPNG(path)
+	if !ok {
+		return nil, errors.New("not an image tidefiles can copy")
+	}
+	return append([]clipOffer{{MimeType: pngType, Data: data}}, wlclipboard.TextOffers(path)...), nil
 }
 
 // clipPNG returns an image file's pixels as PNG bytes, converting other

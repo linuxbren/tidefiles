@@ -658,6 +658,18 @@ func (m model) handleKey(msg tea.KeyMsg) (model, tea.Cmd) {
 				return statusMsg{"Copied " + plural(len(paths), "path"), false}
 			}
 		}
+	case actCopyImage:
+		if !hasCur || classify(cur) != kindImage {
+			m.setMsg("C copies a picture — select an image file", true)
+			break
+		}
+		m.setMsg("copying image…", false)
+		return m, func() tea.Msg {
+			if err := imageWrite(curPath); err != nil {
+				return statusMsg{"copy image failed: " + err.Error(), true}
+			}
+			return statusMsg{"Copied image — paste it into a browser or chat app", false}
+		}
 	case actHidden:
 		m.cfg.ShowHidden = !m.cfg.ShowHidden
 		m.cfg.save()
