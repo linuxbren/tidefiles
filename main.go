@@ -18,7 +18,12 @@ func main() {
 	}
 	themeFlag := flag.String("theme", "", `theme: "omarchy" (follow the desktop) or a tideui palette name (default: saved choice)`)
 	cwdFile := flag.String("cwd-file", "", "write the final directory to this file on exit (for shell cd-on-quit)")
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
+	if *showVersion {
+		fmt.Println(versionString())
+		return
+	}
 
 	dir := "."
 	if flag.NArg() > 0 {
