@@ -1,6 +1,6 @@
 module github.com/linuxbren/tidefiles
 
-go 1.27.1
+go 1.27.0
 
 require (
 	github.com/AvengeMedia/dankgo v1.6.2
