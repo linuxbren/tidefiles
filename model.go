@@ -639,6 +639,8 @@ func (m model) handleKey(msg tea.KeyMsg) (model, tea.Cmd) {
 		m.openConfirm("emptytrash", "empty trash", []string{"Permanently delete everything in the trash?", "This cannot be undone."}, nil)
 	case actProps:
 		m.openProps()
+	case actPerms:
+		m.openPerms()
 	case actOpenWith:
 		m.openWith()
 	case actTerminal:

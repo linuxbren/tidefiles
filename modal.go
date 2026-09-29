@@ -22,6 +22,7 @@ const (
 	mMenu
 	mInfo
 	mHelp
+	mPerms
 )
 
 type menuItem struct {
@@ -41,6 +42,7 @@ type modal struct {
 	scroll  int
 	targets []string // absolute paths the modal acts on
 	prev    string   // filter value to restore on esc
+	perm    *permEdit
 }
 
 // ---- text input --------------------------------------------------------
@@ -161,7 +163,7 @@ func (m *model) openProps() {
 	if len(ts) == 0 {
 		return
 	}
-	m.modal = &modal{kind: mInfo, title: "properties", lines: m.propLines(ts)}
+	m.modal = &modal{kind: mInfo, purpose: "props", title: "properties", lines: m.propLines(ts)}
 }
 
 func (m *model) openWith() {
@@ -284,6 +286,10 @@ func (m model) handleModalKey(msg tea.KeyMsg) (model, tea.Cmd) {
 		switch key {
 		case "?", "esc", "q", "enter", "i":
 			m.modal = nil
+		case "P", "p": // the hint renders lowercase
+			if md.purpose == "props" {
+				m.openPerms()
+			}
 		case "down", "j":
 			md.scroll++
 		case "up", "k":
@@ -299,6 +305,8 @@ func (m model) handleModalKey(msg tea.KeyMsg) (model, tea.Cmd) {
 		}
 	case mMenu:
 		return m.handleMenuKey(md, key)
+	case mPerms:
+		return m.handlePermsKey(md, key)
 	case mInput:
 		switch key {
 		case "esc":
@@ -429,7 +437,13 @@ func (m model) modalOverlay() tideui.Overlay {
 		body = append(body, "", hints(tideui.SoftHint{Key: "y", Label: "yes"}, tideui.SoftHint{Key: "n", Label: "no"}))
 	case mInfo:
 		body = append(body, md.lines...)
-		body = append(body, "", hints(tideui.SoftHint{Key: "esc", Label: "close"}))
+		h := []tideui.SoftHint{{Key: "esc", Label: "close"}}
+		if md.purpose == "props" {
+			h = append(h, tideui.SoftHint{Key: "P", Label: "change permissions"})
+		}
+		body = append(body, "", hints(h...))
+	case mPerms:
+		body = append(body, m.permsBody(md.perm, inner)...)
 	case mMenu:
 		rows := max(3, m.height-10)
 		first := max(0, min(md.sel-rows/2, len(md.items)-rows))

@@ -11,7 +11,7 @@ family, built on [tideui](https://github.com/allisonhere/tideui) and Bubble Tea.
 - **Shortcut strip + help** — common keys are always in the status bar; `?` opens the full list.
 - **Follows your Omarchy theme** — live, no restart. `T` opens a theme picker.
 - **A modern file manager's toolbox** — select, copy / cut / paste (the system clipboard gets file lists
-  for file managers and paths for terminals and editors), trash with **undo**, rename, new file/folder, properties, open with…, places and
+  for file managers and paths for terminals and editors), trash with **undo**, rename, new file/folder, properties, permissions (chmod), open with…, places and
   bookmarks, back/forward history, filter, sort, terminal here, mouse support.
 - **Safe by default** — paste never overwrites (conflicts become `name (copy)`), delete goes to the
   freedesktop trash, and permanent delete asks first.
@@ -34,4 +34,4 @@ Settings (theme, hidden files, wrap, sort, bookmarks) are remembered in
 
 Arrow keys first; vim keys work too. Press `?` in the app for the full list.
 `space` select · `c`/`x`/`v` copy/cut/paste · `d` trash · `ctrl+z` undo · `F2` rename ·
-`n`/`N` new file/folder · `/` filter · `s` sort · `b` places · `i` properties · `o` open with · `T` theme.
+`n`/`N` new file/folder · `/` filter · `s` sort · `b` places · `i` properties · `P` permissions · `o` open with · `T` theme.

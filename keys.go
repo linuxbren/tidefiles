@@ -36,6 +36,7 @@ const (
 	actRestore
 	actEmptyTrash
 	actProps
+	actPerms
 	actOpenWith
 	actTerminal
 	actEdit
@@ -111,6 +112,7 @@ var bindingGroups = []bindingGroup{
 		{actRestore, []string{"R"}, "R", "restore from trash"},
 		{actEmptyTrash, []string{"E"}, "E", "empty trash"},
 		{actProps, []string{"i"}, "i", "properties"},
+		{actPerms, []string{"P"}, "P", "permissions (chmod)"},
 		{actCopyPath, []string{"y"}, "y", "copy path as text"},
 	}},
 	{"Open", []binding{
