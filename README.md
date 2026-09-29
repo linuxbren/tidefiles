@@ -20,12 +20,33 @@ Image previews use `imagemagick` (jpeg/svg/heic/…), `poppler` (PDF), `ffmpegth
 `libarchive` (archives) and `ffmpeg` (audio tags) when installed. Set `TIDEFILES_IMAGES=blocks|sixel|kitty`
 to override terminal detection.
 
+## Install
+
+tidefiles runs on **Linux only** (it's built and tested on Omarchy: Hyprland + foot). It needs
+Go 1.27 or newer to build:
+
+```sh
+go install github.com/linuxbren/tidefiles@latest
+tidefiles --version
+```
+
+The binary lands in `$(go env GOPATH)/bin` (usually `~/go/bin`); make sure that's on your `PATH`.
+The system clipboard needs a Wayland session and `wl-clipboard`.
+
+**Optional — `SUPER+C` on Omarchy.** `SUPER+V` and `SUPER+X` work out of the box, but foot keeps
+the key Omarchy's `SUPER+C` sends to terminals for itself. To make `SUPER+C` copy in tidefiles,
+append [`contrib/omarchy-super-c.lua`](contrib/omarchy-super-c.lua) to `~/.config/hypr/bindings.lua`
+(Hyprland reloads on save; check with `hyprctl configerrors`). It only affects windows titled
+`tidefiles — …`; every other window keeps Omarchy's default. Without it, plain `c` copies.
+
 ## Run
 
 ```sh
-go run . [dir]
-go run . --cwd-file /tmp/tidefiles.cwd   # write final dir on quit, for a cd-on-exit shell wrapper
+tidefiles [dir]
+tidefiles --cwd-file /tmp/tidefiles.cwd   # write final dir on quit, for a cd-on-exit shell wrapper
 ```
+
+From a checkout, `go run . [dir]` works the same way.
 
 Settings (theme, hidden files, wrap, sort, bookmarks) are remembered in
 `~/.config/tidefiles/config.json`.
@@ -36,7 +57,4 @@ Arrow keys first; vim keys work too. Press `?` in the app for the full list.
 `space` select · `SUPER+C`/`X`/`V` copy/cut/paste (plain `c`/`x`/`v` work too) · `d` trash · `ctrl+z` undo · `F2` rename ·
 `n`/`N` new file/folder · `/` filter · `s` sort · `b` places · `i` properties · `P` permissions · `o` open with · `T` theme.
 
-On Omarchy, `SUPER+V` and `SUPER+X` work out of the box. `SUPER+C` needs one Hyprland
-snippet, because foot keeps the key Omarchy sends for itself: append
-[`contrib/omarchy-super-c.lua`](contrib/omarchy-super-c.lua) to `~/.config/hypr/bindings.lua`.
-Without it, use `c`.
+`SUPER+C` needs a one-time Hyprland snippet on Omarchy — see [Install](#install).
