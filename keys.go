@@ -100,7 +100,7 @@ var bindingGroups = []bindingGroup{
 		{actEscape, []string{"esc"}, "esc", "clear selection / filter"},
 	}},
 	{"Files", []binding{
-		{actCopy, []string{"c", "ctrl+y"}, "c", "copy"},
+		{actCopy, []string{"c", "ctrl+y"}, "c", "copy  (also SUPER+C)"},
 		{actCut, []string{"x", "ctrl+x"}, "x", "cut  (also SUPER+X)"},
 		{actPaste, []string{"v", "ctrl+v"}, "v", "paste  (also SUPER+V; works with other apps)"},
 		{actTrash, []string{"d", "delete"}, "d  delete", "move to trash"},
@@ -154,4 +154,4 @@ var keyIndex = func() map[string]action {
 
 // statusHints is the always-visible shortcut strip. "? all keys" leads so it
 // survives truncation on narrow terminals.
-const statusHints = "? all keys  ↑↓←→ navigate  space select  c x v copy cut paste  d trash  F2 rename  / filter  q quit"
+const statusHints = "? all keys  ↑↓←→ navigate  space select  c x v (+SUPER) copy cut paste  d trash  F2 rename  / filter  q quit"
