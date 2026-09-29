@@ -337,7 +337,7 @@ func (m *model) chdir(dir, focus string) { m.navigate(dir, focus, true) }
 
 func (m model) previewOpts() previewOpts {
 	inner, rows := m.geometry()
-	return previewOpts{width: inner[2], rows: rows, wrap: m.cfg.Wrap, hidden: m.cfg.ShowHidden,
+	return previewOpts{width: inner[2], rows: rows, wrap: m.cfg.Wrap, hidden: m.cfg.ShowHidden, mdSource: m.cfg.MarkdownSource,
 		proto: m.proto, cellW: m.cellW, cellH: m.cellH, bg: m.theme.Bg, syn: m.syn}
 }
 
@@ -354,8 +354,8 @@ func (m *model) refreshPreview() tea.Cmd {
 		return nil
 	}
 	o := m.previewOpts()
-	key := fmt.Sprintf("%s|%s|%d|%d|%t|%t|%d|%s|%dx%d|%s|%s", m.cwd, e.name, o.width, o.rows, o.wrap, o.hidden,
-		e.mod.UnixNano(), o.proto, o.cellW, o.cellH, o.bg, o.syn.kw)
+	key := fmt.Sprintf("%s|%s|%d|%d|%t|%t|%t|%d|%s|%dx%d|%s|%s", m.cwd, e.name, o.width, o.rows, o.wrap, o.hidden,
+		o.mdSource, e.mod.UnixNano(), o.proto, o.cellW, o.cellH, o.bg, o.syn.kw)
 	if key == m.pvKey {
 		return nil
 	}
@@ -682,6 +682,10 @@ func (m model) handleKey(msg tea.KeyMsg) (model, tea.Cmd) {
 		m.cfg.save()
 		m.reload(m.curName())
 		m.setMsg(map[bool]string{true: "showing hidden files", false: "hiding hidden files"}[m.cfg.ShowHidden], false)
+	case actMarkdown:
+		m.cfg.MarkdownSource = !m.cfg.MarkdownSource
+		m.cfg.save()
+		m.setMsg(map[bool]string{true: "markdown shown as source", false: "markdown rendered"}[m.cfg.MarkdownSource], false)
 	case actWrap:
 		m.cfg.Wrap = !m.cfg.Wrap
 		m.cfg.save()

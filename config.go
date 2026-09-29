@@ -17,6 +17,8 @@ type config struct {
 
 	PreviewRatio float64 `json:"preview_ratio,omitempty"` // share of the width given to the preview
 	HidePreview  bool    `json:"hide_preview,omitempty"`
+
+	MarkdownSource bool `json:"markdown_source,omitempty"` // preview markdown as source, not rendered
 }
 
 func defaultConfig() config {

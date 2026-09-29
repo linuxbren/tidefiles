@@ -43,6 +43,7 @@ const (
 	actCopyPath
 	actHidden
 	actWrap
+	actMarkdown
 	actSort
 	actSortRev
 	actFilter
@@ -125,7 +126,8 @@ var bindingGroups = []bindingGroup{
 	}},
 	{"View", []binding{
 		{actHidden, []string{"."}, ".", "show / hide hidden files"},
-		{actWrap, []string{"w"}, "w", "preview word wrap"},
+		{actWrap, []string{"w"}, "w", "preview word wrap (text and source)"},
+		{actMarkdown, []string{"m"}, "m", "markdown preview: rendered / source"},
 		{actSort, []string{"s"}, "s", "cycle sort: name, size, modified, type"},
 		{actSortRev, []string{"S"}, "S", "reverse sort"},
 		{actFilter, []string{"/"}, "/", "filter this folder"},

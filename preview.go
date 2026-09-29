@@ -30,6 +30,7 @@ const (
 	kindVideo
 	kindAudio
 	kindArchive
+	kindMarkdown // rendered with glamour, which is too slow for the UI goroutine
 )
 
 // Async kinds shell out to helper tools or decode large files, so they are
@@ -67,6 +68,8 @@ func classify(e entry) previewKind {
 		return kindAudio
 	case archiveExts[ext]:
 		return kindArchive
+	case markdownExts[ext]:
+		return kindMarkdown
 	}
 	return kindText
 }
@@ -75,6 +78,7 @@ func classify(e entry) previewKind {
 type previewOpts struct {
 	width, rows  int
 	wrap, hidden bool
+	mdSource     bool // show markdown as highlighted source instead of rendered
 	proto        gfxProto
 	cellW, cellH int
 	bg           lipgloss.Color
@@ -110,6 +114,10 @@ func buildPreview(dir string, e entry, o previewOpts) preview {
 		}
 	case kindAudio:
 		return audioPreview(p, path, e, o)
+	case kindMarkdown:
+		if !o.mdSource {
+			return markdownPreview(p, path, e, o)
+		}
 	}
 	return textPreview(p, path, e, o)
 }
