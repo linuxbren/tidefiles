@@ -189,6 +189,9 @@ func plural(n int, word string) string {
 	if n == 1 {
 		return "1 " + word
 	}
+	if strings.HasSuffix(word, "ch") || strings.HasSuffix(word, "sh") || strings.HasSuffix(word, "s") || strings.HasSuffix(word, "x") {
+		return fmt.Sprintf("%d %ses", n, word)
+	}
 	return fmt.Sprintf("%d %ss", n, word)
 }
 

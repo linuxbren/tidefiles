@@ -18,6 +18,7 @@ const (
 	actForward
 	actHome
 	actGoto
+	actFind
 	actPlaces
 	actBookmark
 	actSelect
@@ -90,6 +91,7 @@ var bindingGroups = []bindingGroup{
 	}},
 	{"Go to", []binding{
 		{actGoto, []string{"ctrl+l"}, "ctrl+l", "type a path"},
+		{actFind, []string{"f"}, "f", "find files and folders below here (fuzzy)"},
 		{actPlaces, []string{"b"}, "b", "places and bookmarks"},
 		{actBookmark, []string{"B"}, "B", "bookmark this folder"},
 		{actHome, []string{"~"}, "~", "home folder"},

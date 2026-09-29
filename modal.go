@@ -23,6 +23,7 @@ const (
 	mInfo
 	mHelp
 	mPerms
+	mFind
 )
 
 type menuItem struct {
@@ -43,6 +44,7 @@ type modal struct {
 	targets []string // absolute paths the modal acts on
 	prev    string   // filter value to restore on esc
 	perm    *permEdit
+	find    *findState
 }
 
 // ---- text input --------------------------------------------------------
@@ -307,6 +309,8 @@ func (m model) handleModalKey(msg tea.KeyMsg) (model, tea.Cmd) {
 		return m.handleMenuKey(md, key)
 	case mPerms:
 		return m.handlePermsKey(md, key)
+	case mFind:
+		return m.handleFindKey(md, msg)
 	case mInput:
 		switch key {
 		case "esc":
@@ -445,6 +449,8 @@ func (m model) modalOverlay() tideui.Overlay {
 		body = append(body, "", hints(h...))
 	case mPerms:
 		body = append(body, m.permsBody(md.perm, inner)...)
+	case mFind:
+		body = append(body, m.findBody(md, inner)...)
 	case mMenu:
 		rows := max(3, m.height-10)
 		first := max(0, min(md.sel-rows/2, len(md.items)-rows))

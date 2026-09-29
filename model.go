@@ -422,6 +422,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case opDoneMsg:
 		m.finishOp(msg.res)
+	case findBatchMsg:
+		cmd = m.handleFindBatch(msg)
 	case undoMsg:
 		if msg.err != nil {
 			m.setMsg("undo failed: "+msg.err.Error(), true)
@@ -499,6 +501,9 @@ func (m model) handleKey(msg tea.KeyMsg) (model, tea.Cmd) {
 		return m, m.quit()
 	case actHelp:
 		m.modal = &modal{kind: mHelp, title: "keys"}
+	case actFind:
+		m.openFind()
+		return m, m.modal.find.next()
 	case actUp:
 		m.move(-1)
 	case actDown:
