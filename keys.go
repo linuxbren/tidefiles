@@ -40,7 +40,6 @@ const (
 	actTerminal
 	actEdit
 	actCopyPath
-	actCopyImage
 	actHidden
 	actWrap
 	actSort
@@ -113,7 +112,6 @@ var bindingGroups = []bindingGroup{
 		{actEmptyTrash, []string{"E"}, "E", "empty trash"},
 		{actProps, []string{"i"}, "i", "properties"},
 		{actCopyPath, []string{"y"}, "y", "copy path as text"},
-		{actCopyImage, []string{"C"}, "C", "copy the picture itself  (for browsers, chat)"},
 	}},
 	{"Open", []binding{
 		{actEdit, []string{"e"}, "e", "edit in $EDITOR"},

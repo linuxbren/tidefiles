@@ -2,11 +2,6 @@ package main
 
 import (
 	"bytes"
-	"image"
-	"image/color"
-	"image/jpeg"
-	"image/png"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -18,20 +13,6 @@ func offerMap(offers []clipOffer) map[string]string {
 		m[o.MimeType] = string(o.Data)
 	}
 	return m
-}
-
-func writeTestImage(t *testing.T, path string, enc func(*os.File, image.Image) error) {
-	t.Helper()
-	img := image.NewRGBA(image.Rect(0, 0, 4, 3))
-	img.Set(1, 1, color.RGBA{255, 0, 0, 255})
-	f, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-	if err := enc(f, img); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestFileOffersFormats(t *testing.T) {
@@ -52,65 +33,31 @@ func TestFileOffersFormats(t *testing.T) {
 			t.Fatalf("%s = %q", typ, m[typ])
 		}
 	}
-	if _, ok := m[pngType]; ok {
-		t.Fatal("non-image copy must not offer image/png")
-	}
-}
-
-func TestImageOffers(t *testing.T) {
-	dir := t.TempDir()
-	p := filepath.Join(dir, "shot.png")
-	writeTestImage(t, p, func(f *os.File, img image.Image) error { return png.Encode(f, img) })
-	raw, _ := os.ReadFile(p)
-	// Nautilus pastes any clipboard image as a new "Pasted image.png" ahead of
-	// the file list, so copying an image file must not carry its pixels.
-	if _, ok := offerMap(fileOffers(false, []string{p}))[pngType]; ok {
+	if _, ok := m["image/png"]; ok {
 		t.Fatal("file copy must not offer image/png")
 	}
-	offers, err := imageOffers(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	m := offerMap(offers)
-	if m[pngType] != string(raw) || m["text/plain"] != p {
-		t.Fatalf("image offers: png=%v text=%q", m[pngType] == string(raw), m["text/plain"])
-	}
-	if _, ok := m[clipType]; ok {
-		t.Fatal("image copy is not a file copy")
-	}
-	txt := filepath.Join(dir, "notes.txt")
-	mkfile(t, txt, "hi")
-	if _, err := imageOffers(txt); err == nil {
-		t.Fatal("text file is not an image")
-	}
 }
 
-func TestClipPNGConvertsJPEG(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "photo.jpg")
-	writeTestImage(t, p, func(f *os.File, img image.Image) error { return jpeg.Encode(f, img, nil) })
-	data, ok := clipPNG(p)
-	if !ok {
-		t.Fatal("jpeg should convert")
-	}
-	img, err := png.Decode(bytes.NewReader(data))
-	if err != nil || img.Bounds().Dx() != 4 || img.Bounds().Dy() != 3 {
-		t.Fatalf("converted png: %v %v", err, img)
-	}
-	txt := filepath.Join(t.TempDir(), "notes.txt")
-	mkfile(t, txt, "hi")
-	if _, ok := clipPNG(txt); ok {
-		t.Fatal("text file is not an image")
+func TestFileOffersImageHasNoPixels(t *testing.T) {
+	// Nautilus pastes any clipboard image as a new "Pasted image.png" ahead of
+	// the file list, so copying an image file must not carry its pixels.
+	p := filepath.Join(t.TempDir(), "shot.png")
+	mkfile(t, p, "\x89PNG\r\n\x1a\n")
+	for _, o := range fileOffers(false, []string{p}) {
+		if strings.HasPrefix(o.MimeType, "image/") {
+			t.Fatalf("file copy offers %s", o.MimeType)
+		}
 	}
 }
 
 func TestOffersRoundTrip(t *testing.T) {
-	in := []clipOffer{{MimeType: "text/plain", Data: []byte("a\x00b")}, {MimeType: pngType, Data: nil}}
+	in := []clipOffer{{MimeType: "text/plain", Data: []byte("a\x00b")}, {MimeType: "image/png", Data: nil}}
 	var b bytes.Buffer
 	if err := writeOffers(&b, in); err != nil {
 		t.Fatal(err)
 	}
 	out, err := readOffers(&b)
-	if err != nil || len(out) != 2 || out[0].MimeType != "text/plain" || string(out[0].Data) != "a\x00b" || out[1].MimeType != pngType || len(out[1].Data) != 0 {
+	if err != nil || len(out) != 2 || out[0].MimeType != "text/plain" || string(out[0].Data) != "a\x00b" || out[1].MimeType != "image/png" || len(out[1].Data) != 0 {
 		t.Fatalf("round trip: %v %+v", err, out)
 	}
 	if _, err := readOffers(strings.NewReader("text/plain\x00-5\x00")); err == nil {

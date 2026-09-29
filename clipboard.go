@@ -5,10 +5,9 @@ package main
 // list or text/uri-list, terminals and editors take the paths as text (Claude
 // Code attaches a pasted image path as the image).
 //
-// A file copy never carries image data: Nautilus pastes any image on the
-// clipboard as a new "Pasted image.png" in preference to the file list, so an
-// image file would arrive renamed. Copying the picture itself (for browsers
-// and chat apps) is a separate command, imageOffers.
+// A copy never carries image data: Nautilus pastes any image on the clipboard
+// as a new "Pasted image.png" in preference to the file list, so an image file
+// would arrive renamed. Nautilus's own file copies carry none either.
 //
 // Serving several types from one copy needs the Wayland data-control protocol,
 // which wl-copy cannot do. The selection is owned by a detached copy of this
@@ -22,8 +21,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"image"
-	"image/png"
 	"io"
 	"net/url"
 	"os"
@@ -40,26 +37,17 @@ import (
 )
 
 const (
-	clipType          = "x-special/gnome-copied-files"
-	uriListType       = "text/uri-list"
-	pngType           = "image/png"
-	clipServeEnv      = "TIDEFILES_CLIPBOARD_SERVE"
-	maxClipImageBytes = 64 << 20  // skip the image/png offer above this
-	maxClipOffered    = 512 << 20 // sanity cap on what the owner will read
+	clipType       = "x-special/gnome-copied-files"
+	uriListType    = "text/uri-list"
+	clipServeEnv   = "TIDEFILES_CLIPBOARD_SERVE"
+	maxClipOffered = 512 << 20 // sanity cap on what the owner will read
 )
 
 type clipOffer = wlclipboard.Offer
 
 // Variables so tests can stub the desktop.
 var (
-	clipWrite  = func(cut bool, paths []string) error { return setClipboard(fileOffers(cut, paths)) }
-	imageWrite = func(path string) error {
-		offers, err := imageOffers(path)
-		if err != nil {
-			return err
-		}
-		return setClipboard(offers)
-	}
+	clipWrite = func(cut bool, paths []string) error { return setClipboard(fileOffers(cut, paths)) }
 	textWrite = func(s string) error { return setClipboard(wlclipboard.TextOffers(s)) }
 	clipRead  = readClipboardFiles
 )
@@ -81,51 +69,6 @@ func fileOffers(cut bool, paths []string) []clipOffer {
 	return append(offers, wlclipboard.TextOffers(strings.Join(paths, "\n"))...)
 }
 
-// imageOffers puts a picture itself on the clipboard as image/png, with its
-// path as the text form.
-func imageOffers(path string) ([]clipOffer, error) {
-	data, ok := clipPNG(path)
-	if !ok {
-		return nil, errors.New("not an image tidefiles can copy")
-	}
-	return append([]clipOffer{{MimeType: pngType, Data: data}}, wlclipboard.TextOffers(path)...), nil
-}
-
-// clipPNG returns an image file's pixels as PNG bytes, converting other
-// formats, since image-paste targets generally only read image/png.
-func clipPNG(path string) ([]byte, bool) {
-	if !imageExts[strings.ToLower(filepath.Ext(path))] {
-		return nil, false
-	}
-	st, err := os.Stat(path)
-	if err != nil || !st.Mode().IsRegular() || st.Size() > maxClipImageBytes {
-		return nil, false
-	}
-	if w, h := imageConfig(path); w*h > maxImagePixels {
-		return nil, false
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, false
-	}
-	if bytes.HasPrefix(data, []byte("\x89PNG\r\n\x1a\n")) {
-		return data, true
-	}
-	// magick applies EXIF rotation and reads formats Go can't (svg, heic…).
-	if out, err := run("magick", path+"[0]", "-auto-orient", "png:-"); err == nil && len(out) > 0 && len(out) <= maxClipImageBytes {
-		return out, true
-	}
-	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return nil, false
-	}
-	var b bytes.Buffer
-	if png.Encode(&b, img) != nil || b.Len() > maxClipImageBytes {
-		return nil, false
-	}
-	return b.Bytes(), true
-}
-
 // setClipboard takes the selection with all offers, or falls back to wl-copy
 // with one of them.
 func setClipboard(offers []clipOffer) error {
@@ -139,20 +82,12 @@ func setClipboard(offers []clipOffer) error {
 	return nil
 }
 
-// wlCopyFallback offers a single type: a lone image as PNG, otherwise the URI
-// list (wl-copy also advertises it as text/plain), otherwise plain text.
+// wlCopyFallback offers a single type: the URI list for files (wl-copy also
+// advertises it as text/plain), otherwise plain text.
 func wlCopyFallback(offers []clipOffer) error {
-	pick := func(t string) *clipOffer {
-		for i := range offers {
-			if offers[i].MimeType == t {
-				return &offers[i]
-			}
-		}
-		return nil
-	}
-	for _, t := range []string{pngType, uriListType} {
-		if o := pick(t); o != nil {
-			return runWithStdin(o.Data, "wl-copy", "--type", t)
+	for _, o := range offers {
+		if o.MimeType == uriListType {
+			return runWithStdin(o.Data, "wl-copy", "--type", uriListType)
 		}
 	}
 	if len(offers) == 0 {
