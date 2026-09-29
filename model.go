@@ -477,7 +477,13 @@ func (m model) handleKey(msg tea.KeyMsg) (model, tea.Cmd) {
 	cur, hasCur := m.current()
 	curPath := filepath.Join(m.cwd, cur.name)
 
-	switch keyIndex[msg.String()] {
+	act := keyIndex[msg.String()]
+	if msg.Paste {
+		// The terminal's own paste (Omarchy's Super+V arrives as Shift+Insert,
+		// which foot turns into a bracketed paste) means paste files here.
+		act = actPaste
+	}
+	switch act {
 	case actQuit:
 		return m, m.quit()
 	case actHelp:

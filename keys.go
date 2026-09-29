@@ -101,8 +101,8 @@ var bindingGroups = []bindingGroup{
 	}},
 	{"Files", []binding{
 		{actCopy, []string{"c", "ctrl+y"}, "c", "copy"},
-		{actCut, []string{"x", "ctrl+x"}, "x", "cut"},
-		{actPaste, []string{"v", "ctrl+v"}, "v", "paste  (works with other apps)"},
+		{actCut, []string{"x", "ctrl+x"}, "x", "cut  (also SUPER+X)"},
+		{actPaste, []string{"v", "ctrl+v"}, "v", "paste  (also SUPER+V; works with other apps)"},
 		{actTrash, []string{"d", "delete"}, "d  delete", "move to trash"},
 		{actDelete, []string{"D", "shift+delete"}, "D", "delete permanently"},
 		{actRename, []string{"f2", "r"}, "F2  r", "rename"},
