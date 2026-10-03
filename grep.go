@@ -21,6 +21,7 @@ import (
 	"regexp"
 	resyntax "regexp/syntax"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -58,6 +59,7 @@ type grepState struct {
 	root    string
 	hidden  bool
 	regex   bool
+	moved   bool   // the user moved the selection since this search started
 	engine  string // "ripgrep" or "built-in"
 	pending int    // input generation the debounce tick must match
 	run     int    // id of the running search
@@ -101,7 +103,7 @@ func (g *grepState) stop() {
 
 func (g *grepState) start(query string) tea.Cmd {
 	g.stop()
-	g.hits, g.files, g.done, g.capped, g.err, g.query = nil, map[string]bool{}, false, false, "", query
+	g.hits, g.files, g.done, g.capped, g.err, g.query, g.moved = nil, map[string]bool{}, false, false, "", query, false
 	if len([]rune(query)) < grepMinQuery {
 		g.done = true
 		return nil
@@ -509,9 +511,39 @@ func (m model) handleGrepBatch(msg grepBatchMsg) tea.Cmd {
 	g.done, g.capped, g.err = msg.done, msg.capped, msg.err
 	if msg.done {
 		g.cancel = nil
+		sel := g.sortHits(m.modal.sel)
+		if !g.moved {
+			sel = 0 // nobody chose anything yet: start at the top of the sorted list
+		}
+		m.modal.sel = sel
 		return nil
 	}
 	return g.next()
+}
+
+// sortHits orders the results by path and line once a search is done (both
+// engines search files in parallel, so they arrive in no fixed order) and
+// returns where the hit at index sel moved to, so the selection stays put.
+func (g *grepState) sortHits(sel int) int {
+	var keep *grepHit
+	if sel >= 0 && sel < len(g.hits) {
+		h := g.hits[sel]
+		keep = &h
+	}
+	sort.SliceStable(g.hits, func(i, j int) bool {
+		if g.hits[i].path != g.hits[j].path {
+			return g.hits[i].path < g.hits[j].path
+		}
+		return g.hits[i].line < g.hits[j].line
+	})
+	if keep != nil {
+		for i, h := range g.hits {
+			if h.path == keep.path && h.line == keep.line {
+				return i
+			}
+		}
+	}
+	return 0
 }
 
 func (m model) handleGrepTick(msg grepTickMsg) tea.Cmd {
@@ -529,13 +561,13 @@ func (m model) handleGrepKey(md *modal, msg tea.KeyMsg) (model, tea.Cmd) {
 		g.stop()
 		m.modal = nil
 	case "up", "ctrl+p":
-		md.sel = max(0, md.sel-1)
+		md.sel, g.moved = max(0, md.sel-1), true
 	case "down", "ctrl+n", "tab":
-		md.sel = min(max(0, len(g.hits)-1), md.sel+1)
+		md.sel, g.moved = min(max(0, len(g.hits)-1), md.sel+1), true
 	case "pgup":
-		md.sel = max(0, md.sel-10)
+		md.sel, g.moved = max(0, md.sel-10), true
 	case "pgdown":
-		md.sel = min(max(0, len(g.hits)-1), md.sel+10)
+		md.sel, g.moved = min(max(0, len(g.hits)-1), md.sel+10), true
 	case "alt+r":
 		g.regex = !g.regex
 		md.sel = 0

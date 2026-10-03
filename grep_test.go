@@ -308,3 +308,30 @@ func TestJumpHighlightClearsWhenLeavingFile(t *testing.T) {
 		t.Fatalf("highlight came back: %d..%d", m.pv.hlFrom, m.pv.hlTo)
 	}
 }
+
+func TestGrepResultsSortedWhenDone(t *testing.T) {
+	g := &grepState{run: 7, files: map[string]bool{}, cancel: func() {}}
+	m := model{modal: &modal{kind: mGrep, grep: g}}
+	m.handleGrepBatch(grepBatchMsg{run: 7, hits: []grepHit{{path: "b.go", line: 9}, {path: "a.go", line: 30}}})
+	m.modal.sel, g.moved = 1, true // the user moved to a.go:30 while results stream in
+	m.handleGrepBatch(grepBatchMsg{run: 7, hits: []grepHit{{path: "a.go", line: 4}, {path: "b.go", line: 2}}, done: true})
+	var got []string
+	for _, h := range g.hits {
+		got = append(got, h.path+":"+strconv.Itoa(h.line))
+	}
+	if strings.Join(got, " ") != "a.go:4 a.go:30 b.go:2 b.go:9" {
+		t.Fatalf("not sorted: %v", got)
+	}
+	if h := g.hits[m.modal.sel]; h.path != "a.go" || h.line != 30 {
+		t.Fatalf("selection moved off a.go:30 to %s:%d", h.path, h.line)
+	}
+
+	// If the user hasn't moved, the sorted list starts at the top.
+	g2 := &grepState{run: 8, files: map[string]bool{}, cancel: func() {}}
+	m2 := model{modal: &modal{kind: mGrep, grep: g2}}
+	m2.handleGrepBatch(grepBatchMsg{run: 8, hits: []grepHit{{path: "z.go", line: 1}}})
+	m2.handleGrepBatch(grepBatchMsg{run: 8, hits: []grepHit{{path: "a.go", line: 1}}, done: true})
+	if m2.modal.sel != 0 || g2.hits[0].path != "a.go" {
+		t.Fatalf("untouched selection should be the first sorted hit: sel %d, %+v", m2.modal.sel, g2.hits)
+	}
+}
