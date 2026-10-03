@@ -12,7 +12,7 @@ family, built on [tideui](https://github.com/allisonhere/tideui) and Bubble Tea.
 - **Follows your Omarchy theme** — live, no restart. `T` opens a theme picker.
 - **A modern file manager's toolbox** — select, copy / cut / paste (the system clipboard gets file lists
   for file managers and paths for terminals and editors), trash with **undo**, rename, new file/folder, properties, permissions (chmod), open with…, places and
-  bookmarks, back/forward history, filter, fuzzy find across subfolders, search inside files (ripgrep when installed), sort, terminal here, mouse support.
+  bookmarks, back/forward history, filter, fuzzy find across subfolders, search inside files (ripgrep when installed; `alt+r` for regex), sort, terminal here, mouse support.
 - **Safe by default** — paste never overwrites (conflicts become `name (copy)`), delete goes to the
   freedesktop trash, and permanent delete asks first.
 

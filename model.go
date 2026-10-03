@@ -337,7 +337,7 @@ func (m *model) navigate(dir, focus string, record bool) {
 func (m *model) chdir(dir, focus string) { m.navigate(dir, focus, true) }
 
 // jumpTarget is a file and line picked in content search: the preview shows
-// that line, highlighted, while the file is selected.
+// that line, highlighted, until another file is selected.
 type jumpTarget struct {
 	path     string
 	line     int
@@ -358,10 +358,13 @@ func (m model) previewOpts() previewOpts {
 // immediately; images, PDFs, archives and the like are built off the UI
 // goroutine after a short debounce so scrolling stays smooth.
 func (m *model) refreshPreview() tea.Cmd {
+	e, ok := m.current()
+	if m.jump.path != "" && (!ok || filepath.Join(m.cwd, e.name) != m.jump.path) {
+		m.jump = jumpTarget{} // the content-search highlight lasts while its file is selected
+	}
 	if m.cfg.HidePreview {
 		return nil
 	}
-	e, ok := m.current()
 	if !ok {
 		m.pv, m.pvKey, m.pvPath = preview{title: "Preview", lines: []string{"  (nothing selected)"}}, "", ""
 		return nil

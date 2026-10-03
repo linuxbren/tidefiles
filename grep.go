@@ -2,7 +2,8 @@ package main
 
 // Content search: find text inside the files below the current folder. Uses
 // ripgrep when it's installed and a built-in Go search otherwise; both search
-// for the literal text (case-insensitive unless it has a capital), skip
+// for the literal text, or a regular expression when toggled with alt+r
+// (case-insensitive unless the query has a capital), skip
 // binary and very large files, respect .gitignore and the show-hidden
 // setting, and never look inside .git.
 
@@ -11,10 +12,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	resyntax "regexp/syntax"
 	"runtime"
 	"strconv"
 	"strings"
@@ -42,9 +47,17 @@ type grepHit struct {
 	spans [][2]int // byte ranges of the matches within text
 }
 
+// grepQuery is what to search for.
+type grepQuery struct {
+	text   string
+	regex  bool // text is a regular expression rather than literal text
+	hidden bool // include hidden files
+}
+
 type grepState struct {
 	root    string
 	hidden  bool
+	regex   bool
 	engine  string // "ripgrep" or "built-in"
 	pending int    // input generation the debounce tick must match
 	run     int    // id of the running search
@@ -98,10 +111,11 @@ func (g *grepState) start(query string) tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	g.cancel = cancel
 	g.ch = make(chan grepBatchMsg, 4)
+	q := grepQuery{text: query, regex: g.regex, hidden: g.hidden}
 	if g.engine == "ripgrep" {
-		go ripgrep(ctx, g.root, query, g.hidden, g.run, g.ch)
+		go ripgrep(ctx, g.root, q, g.run, g.ch)
 	} else {
-		go grepFiles(ctx, g.root, query, g.hidden, g.run, g.ch)
+		go grepFiles(ctx, g.root, q, g.run, g.ch)
 	}
 	return g.next()
 }
@@ -160,8 +174,12 @@ func (s *grepSender) finish(err string) {
 	}
 }
 
-// smartCase reports whether query should match case-sensitively.
-func smartCase(query string) bool {
+// smartCase reports whether query should match case-sensitively: it has a
+// capital letter. In a regex, escapes such as \W or \S don't count.
+func smartCase(query string, regex bool) bool {
+	if regex {
+		query = regexp.MustCompile(`\\.`).ReplaceAllString(query, "")
+	}
 	for _, r := range query {
 		if unicode.IsUpper(r) {
 			return true
@@ -190,22 +208,25 @@ type rgEvent struct {
 	} `json:"data"`
 }
 
-func ripgrepArgs(query string, hidden bool) []string {
-	args := []string{"--json", "--no-config", "--fixed-strings", "--smart-case",
+func ripgrepArgs(q grepQuery) []string {
+	args := []string{"--json", "--no-config", "--smart-case",
 		"--max-filesize", strconv.Itoa(grepMaxFileSize), "--max-count", strconv.Itoa(grepMaxPerFile),
 		"--glob", "!.git"}
-	if hidden {
+	if !q.regex {
+		args = append(args, "--fixed-strings")
+	}
+	if q.hidden {
 		args = append(args, "--hidden")
 	}
-	return append(args, "--", query, ".")
+	return append(args, "--", q.text, ".")
 }
 
-func ripgrep(ctx context.Context, root, query string, hidden bool, run int, ch chan<- grepBatchMsg) {
+func ripgrep(ctx context.Context, root string, q grepQuery, run int, ch chan<- grepBatchMsg) {
 	defer close(ch)
 	s := &grepSender{ctx: ctx, run: run, ch: ch, last: time.Now()}
 	cctx, kill := context.WithCancel(ctx)
 	defer kill()
-	cmd := exec.CommandContext(cctx, "rg", ripgrepArgs(query, hidden)...)
+	cmd := exec.CommandContext(cctx, "rg", ripgrepArgs(q)...)
 	cmd.Dir = root
 	out, err := cmd.StdoutPipe()
 	if err != nil {
@@ -231,11 +252,14 @@ func ripgrep(ctx context.Context, root, query string, hidden bool, run int, ch c
 	if ctx.Err() != nil {
 		return
 	}
-	// rg exits 1 for "no matches" and 2 for unreadable files it skipped; only
-	// report stderr when nothing came back at all.
+	// rg exits 1 for "no matches" and 2 for errors (a bad regex, or files it
+	// couldn't read); only report stderr when nothing came back at all.
 	msg := ""
 	if s.total == 0 && cmd.ProcessState != nil && cmd.ProcessState.ExitCode() == 2 {
-		msg = strings.TrimSpace(strings.SplitN(stderr.String(), "\n", 2)[0])
+		msg = strings.Join(strings.Fields(stderr.String()), " ")
+		if len(msg) > 160 {
+			msg = msg[:160] + "…"
+		}
 	}
 	s.finish(msg)
 }
@@ -257,15 +281,15 @@ func parseRgMatch(line []byte) (grepHit, bool) {
 
 // ---- built-in search -----------------------------------------------------
 
-func grepFiles(ctx context.Context, root, query string, hidden bool, run int, ch chan<- grepBatchMsg) {
+func grepFiles(ctx context.Context, root string, q grepQuery, run int, ch chan<- grepBatchMsg) {
 	defer close(ch)
 	s := &grepSender{ctx: ctx, run: run, ch: ch, last: time.Now()}
 	cctx, stop := context.WithCancel(ctx)
 	defer stop()
-	sensitive := smartCase(query)
-	needle := query
-	if !sensitive {
-		needle = strings.ToLower(query)
+	match, err := newMatcher(q)
+	if err != nil {
+		s.finish(err.Error())
+		return
 	}
 	// List files on one goroutine, search them on a pool, and collect here so
 	// the result caps are applied in one place.
@@ -277,7 +301,7 @@ func grepFiles(ctx context.Context, root, query string, hidden bool, run int, ch
 		go func() {
 			defer wg.Done()
 			for rel := range paths {
-				if hits := grepFile(filepath.Join(root, rel), rel, needle, sensitive); len(hits) > 0 {
+				if hits := grepFile(filepath.Join(root, rel), rel, match); len(hits) > 0 {
 					select {
 					case results <- hits:
 					case <-cctx.Done():
@@ -288,7 +312,7 @@ func grepFiles(ctx context.Context, root, query string, hidden bool, run int, ch
 		}()
 	}
 	go func() {
-		listFiles(cctx, root, hidden, func(rel string) bool {
+		listFiles(cctx, root, q.hidden, func(rel string) bool {
 			select {
 			case paths <- rel:
 				return true
@@ -378,9 +402,42 @@ func listFiles(ctx context.Context, root string, hidden bool, fn func(string) bo
 	})
 }
 
+// matcher returns the byte ranges of the matches in a line; a match can be
+// empty (a regex such as ^), so a non-nil result means the line matches.
+type matcher func(text string) [][2]int
+
+func newMatcher(q grepQuery) (matcher, error) {
+	sensitive := smartCase(q.text, q.regex)
+	if !q.regex {
+		needle := q.text
+		if !sensitive {
+			needle = strings.ToLower(needle)
+		}
+		return func(text string) [][2]int { return findAll(text, needle, sensitive) }, nil
+	}
+	pattern := q.text
+	if !sensitive {
+		pattern = "(?i)" + pattern
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		var se *resyntax.Error
+		if errors.As(err, &se) {
+			return nil, fmt.Errorf("invalid regex: %s", se.Code)
+		}
+		return nil, fmt.Errorf("invalid regex: %v", err)
+	}
+	return func(text string) [][2]int {
+		var spans [][2]int
+		for _, m := range re.FindAllStringIndex(text, -1) {
+			spans = append(spans, [2]int{m[0], m[1]})
+		}
+		return spans
+	}, nil
+}
+
 // grepFile returns the matching lines of one file, up to grepMaxPerFile.
-// needle must be lower-case unless sensitive.
-func grepFile(path, rel, needle string, sensitive bool) []grepHit {
+func grepFile(path, rel string, match matcher) []grepHit {
 	st, err := os.Stat(path)
 	if err != nil || !st.Mode().IsRegular() || st.Size() > grepMaxFileSize {
 		return nil
@@ -401,7 +458,7 @@ func grepFile(path, rel, needle string, sensitive bool) []grepHit {
 			return hits
 		}
 		text := strings.TrimRight(line, "\r\n")
-		if spans := findAll(text, needle, sensitive); len(spans) > 0 {
+		if spans := match(text); spans != nil {
 			if hits = append(hits, grepHit{path: rel, line: n, text: text, spans: spans}); len(hits) >= grepMaxPerFile {
 				return hits
 			}
@@ -479,6 +536,10 @@ func (m model) handleGrepKey(md *modal, msg tea.KeyMsg) (model, tea.Cmd) {
 		md.sel = max(0, md.sel-10)
 	case "pgdown":
 		md.sel = min(max(0, len(g.hits)-1), md.sel+10)
+	case "alt+r":
+		g.regex = !g.regex
+		md.sel = 0
+		return m, g.start(strings.TrimSpace(md.in.value()))
 	case "enter":
 		if md.sel >= len(g.hits) {
 			break
@@ -508,9 +569,11 @@ func (m model) grepBody(md *modal, inner int) []string {
 	var status string
 	switch {
 	case len([]rune(q)) < grepMinQuery:
-		status = "type at least 2 characters · " + g.engine
-	case g.query != q || (!g.done && len(g.hits) == 0):
-		status = "searching… · " + g.engine
+		status = "type at least 2 characters"
+	case g.query != q || (!g.done && len(g.hits) == 0 && g.err == ""):
+		status = "searching…"
+	case g.err != "":
+		status = "no results"
 	default:
 		status = plural(len(g.hits), "match") + " in " + plural(len(g.files), "file")
 		if g.capped {
@@ -519,8 +582,12 @@ func (m model) grepBody(md *modal, inner int) []string {
 		if !g.done {
 			status += ", searching…"
 		}
-		status += " · " + g.engine
 	}
+	mode := "literal"
+	if g.regex {
+		mode = "regex"
+	}
+	status += " · " + mode + " · " + g.engine
 	body = append(body, st.DetailMeta.Render(status), "")
 	rows := max(3, m.height-14)
 	first := max(0, min(md.sel-rows/2, len(g.hits)-rows))
@@ -534,9 +601,14 @@ func (m model) grepBody(md *modal, inner int) []string {
 	case g.done && g.query == q && len(g.hits) == 0 && len([]rune(q)) >= grepMinQuery:
 		body = append(body, "  no matches")
 	}
+	regexHint := "regex"
+	if g.regex {
+		regexHint = "literal"
+	}
 	body = append(body, "", r.RenderSoftHints(inner,
 		tideui.SoftHint{Key: "↑↓", Label: "choose"},
 		tideui.SoftHint{Key: "enter", Label: "open at line"},
+		tideui.SoftHint{Key: "alt+r", Label: regexHint},
 		tideui.SoftHint{Key: "esc", Label: "close"}))
 	return body
 }

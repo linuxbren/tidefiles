@@ -37,15 +37,27 @@ func grepFixture(t *testing.T) string {
 	return root
 }
 
-func runGrep(t *testing.T, engine func(context.Context, string, string, bool, int, chan<- grepBatchMsg), root, query string, hidden bool) []grepHit {
+type grepEngine = func(context.Context, string, grepQuery, int, chan<- grepBatchMsg)
+
+func runGrep(t *testing.T, engine grepEngine, root, query string, hidden bool) []grepHit {
 	t.Helper()
+	hits, err := runGrepQ(engine, root, grepQuery{text: query, hidden: hidden})
+	if err != "" {
+		t.Fatalf("search error: %s", err)
+	}
+	return hits
+}
+
+// runGrepQ runs a search to completion and returns its sorted hits and error.
+func runGrepQ(engine grepEngine, root string, q grepQuery) ([]grepHit, string) {
 	ch := make(chan grepBatchMsg, 4)
-	go engine(context.Background(), root, query, hidden, 1, ch)
+	go engine(context.Background(), root, q, 1, ch)
 	var hits []grepHit
+	errMsg := ""
 	for msg := range ch {
 		hits = append(hits, msg.hits...)
 		if msg.err != "" {
-			t.Fatalf("search error: %s", msg.err)
+			errMsg = msg.err
 		}
 	}
 	sort.Slice(hits, func(i, j int) bool {
@@ -54,7 +66,7 @@ func runGrep(t *testing.T, engine func(context.Context, string, string, bool, in
 		}
 		return hits[i].line < hits[j].line
 	})
-	return hits
+	return hits, errMsg
 }
 
 func hitKeys(hits []grepHit) []string {
@@ -65,8 +77,8 @@ func hitKeys(hits []grepHit) []string {
 	return out
 }
 
-func engines(t *testing.T) map[string]func(context.Context, string, string, bool, int, chan<- grepBatchMsg) {
-	e := map[string]func(context.Context, string, string, bool, int, chan<- grepBatchMsg){"built-in": grepFiles}
+func engines(t *testing.T) map[string]grepEngine {
+	e := map[string]grepEngine{"built-in": grepFiles}
 	if _, err := exec.LookPath("rg"); err == nil {
 		e["ripgrep"] = ripgrep
 	} else {
@@ -220,5 +232,79 @@ func TestMarkdownJumpShowsSource(t *testing.T) {
 	p := buildPreview(dir, entry{name: "r.md", size: 25}, previewOpts{width: 60, rows: 10, wrap: true, line: 3, syn: testSyntax})
 	if p.hlTo <= p.hlFrom || !strings.Contains(p.lines[p.hlFrom], "**text**") {
 		t.Fatalf("source line 3 not highlighted: %v %d..%d", p.lines, p.hlFrom, p.hlTo)
+	}
+}
+
+func TestGrepRegex(t *testing.T) {
+	root := t.TempDir()
+	mkfile(t, filepath.Join(root, "a.go"), "func Alpha() {}\nfunc beta(x int) {}\nvar gamma = 3\nliteral (.*) here\n")
+	for name, engine := range engines(t) {
+		t.Run(name, func(t *testing.T) {
+			keys := func(q grepQuery) string {
+				hits, err := runGrepQ(engine, root, q)
+				if err != "" {
+					t.Fatalf("%+v: %s", q, err)
+				}
+				return strings.Join(hitKeys(hits), " ")
+			}
+			if got := keys(grepQuery{text: `^func \w+\(`, regex: true}); got != "a.go:1 a.go:2" {
+				t.Errorf("regex: %s", got)
+			}
+			// \w has a capital-free escape; \W must not switch on case sensitivity.
+			if got := keys(grepQuery{text: `ALPHA\W`, regex: true}); got != "" {
+				t.Errorf("capitals in a regex are case-sensitive: %s", got)
+			}
+			if got := keys(grepQuery{text: `alpha\W`, regex: true}); got != "a.go:1" {
+				t.Errorf("\\W alone keeps it case-insensitive: %s", got)
+			}
+			if got := keys(grepQuery{text: `(.*)`}); got != "a.go:4" {
+				t.Errorf("literal mode treats regex characters literally: %s", got)
+			}
+			hits, _ := runGrepQ(engine, root, grepQuery{text: `gam+a`, regex: true})
+			if len(hits) != 1 || len(hits[0].spans) != 1 || hits[0].spans[0] != [2]int{4, 9} {
+				t.Errorf("regex spans: %+v", hits)
+			}
+			if _, err := runGrepQ(engine, root, grepQuery{text: `func (`, regex: true}); err == "" {
+				t.Error("an invalid regex should report an error")
+			}
+		})
+	}
+}
+
+func TestRipgrepArgsMode(t *testing.T) {
+	lit := strings.Join(ripgrepArgs(grepQuery{text: "x"}), " ")
+	re := strings.Join(ripgrepArgs(grepQuery{text: "x", regex: true, hidden: true}), " ")
+	if !strings.Contains(lit, "--fixed-strings") || strings.Contains(lit, "--hidden") {
+		t.Errorf("literal args: %s", lit)
+	}
+	if strings.Contains(re, "--fixed-strings") || !strings.Contains(re, "--hidden") || !strings.HasSuffix(re, "-- x .") {
+		t.Errorf("regex args: %s", re)
+	}
+}
+
+func TestJumpHighlightClearsWhenLeavingFile(t *testing.T) {
+	t.Setenv("TIDEFILES_IMAGES", "blocks") // no terminal probing in tests
+	dir := t.TempDir()
+	mkfile(t, filepath.Join(dir, "a.txt"), "one\ntwo\nthree\n")
+	mkfile(t, filepath.Join(dir, "b.txt"), "other\n")
+	cfg := defaultConfig()
+	cfg.Theme = "tokyo-night"
+	m := newModel(dir, cfg, "", newGfxOut(os.Stdout))
+	m.width, m.height = 120, 40
+	m.jump = jumpTarget{path: filepath.Join(dir, "a.txt"), line: 2}
+	m.chdir(dir, "a.txt")
+	m.refreshPreview()
+	if m.pv.hlTo <= m.pv.hlFrom || m.pv.lines[m.pv.hlFrom] != "two" {
+		t.Fatalf("jump not highlighted: %v %d..%d", m.pv.lines, m.pv.hlFrom, m.pv.hlTo)
+	}
+	m.move(1) // to b.txt
+	m.refreshPreview()
+	if m.jump.path != "" {
+		t.Fatalf("jump kept after leaving the file: %+v", m.jump)
+	}
+	m.move(-1) // back to a.txt: no highlight any more
+	m.refreshPreview()
+	if m.pv.hlTo > m.pv.hlFrom {
+		t.Fatalf("highlight came back: %d..%d", m.pv.hlFrom, m.pv.hlTo)
 	}
 }
