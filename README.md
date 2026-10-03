@@ -12,7 +12,7 @@ family, built on [tideui](https://github.com/allisonhere/tideui) and Bubble Tea.
 - **Follows your Omarchy theme** — live, no restart. `T` opens a theme picker.
 - **A modern file manager's toolbox** — select, copy / cut / paste (the system clipboard gets file lists
   for file managers and paths for terminals and editors), trash with **undo**, rename, new file/folder, properties, permissions (chmod), open with…, places and
-  bookmarks, back/forward history, filter, fuzzy find across subfolders, sort, terminal here, mouse support.
+  bookmarks, back/forward history, filter, fuzzy find across subfolders, search inside files (ripgrep when installed), sort, terminal here, mouse support.
 - **Safe by default** — paste never overwrites (conflicts become `name (copy)`), delete goes to the
   freedesktop trash, and permanent delete asks first.
 
@@ -55,6 +55,6 @@ Settings (theme, hidden files, wrap, sort, bookmarks) are remembered in
 
 Arrow keys first; vim keys work too. Press `?` in the app for the full list.
 `space` select · `SUPER+C`/`X`/`V` copy/cut/paste (plain `c`/`x`/`v` work too) · `d` trash · `ctrl+z` undo · `F2` rename ·
-`n`/`N` new file/folder · `/` filter · `f` find · `s` sort · `b` places · `i` properties · `P` permissions · `o` open with · `T` theme.
+`n`/`N` new file/folder · `/` filter · `f` find · `F` search inside files · `s` sort · `b` places · `i` properties · `P` permissions · `o` open with · `T` theme.
 
 `SUPER+C` needs a one-time Hyprland snippet on Omarchy — see [Install](#install).

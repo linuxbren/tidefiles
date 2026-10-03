@@ -57,6 +57,7 @@ type model struct {
 	selected map[string]bool   // names in cwd
 	clip     clipboard
 	titleDir string // folder the window title was last set for
+	jump     jumpTarget
 	undo     []undoItem
 
 	hist []string
@@ -335,9 +336,21 @@ func (m *model) navigate(dir, focus string, record bool) {
 
 func (m *model) chdir(dir, focus string) { m.navigate(dir, focus, true) }
 
+// jumpTarget is a file and line picked in content search: the preview shows
+// that line, highlighted, while the file is selected.
+type jumpTarget struct {
+	path     string
+	line     int
+	scrolled bool // the preview has been scrolled to the line once
+}
+
 func (m model) previewOpts() previewOpts {
 	inner, rows := m.geometry()
-	return previewOpts{width: inner[2], rows: rows, wrap: m.cfg.Wrap, hidden: m.cfg.ShowHidden, mdSource: m.cfg.MarkdownSource,
+	line := 0
+	if e, ok := m.current(); ok && filepath.Join(m.cwd, e.name) == m.jump.path {
+		line = m.jump.line
+	}
+	return previewOpts{line: line, width: inner[2], rows: rows, wrap: m.cfg.Wrap, hidden: m.cfg.ShowHidden, mdSource: m.cfg.MarkdownSource,
 		proto: m.proto, cellW: m.cellW, cellH: m.cellH, bg: m.theme.Bg, syn: m.syn}
 }
 
@@ -354,8 +367,8 @@ func (m *model) refreshPreview() tea.Cmd {
 		return nil
 	}
 	o := m.previewOpts()
-	key := fmt.Sprintf("%s|%s|%d|%d|%t|%t|%t|%d|%s|%dx%d|%s|%s", m.cwd, e.name, o.width, o.rows, o.wrap, o.hidden,
-		o.mdSource, e.mod.UnixNano(), o.proto, o.cellW, o.cellH, o.bg, o.syn.kw)
+	key := fmt.Sprintf("%s|%s|%d|%d|%t|%t|%t|%d|%d|%s|%dx%d|%s|%s", m.cwd, e.name, o.width, o.rows, o.wrap, o.hidden,
+		o.mdSource, o.line, e.mod.UnixNano(), o.proto, o.cellW, o.cellH, o.bg, o.syn.kw)
 	if key == m.pvKey {
 		return nil
 	}
@@ -367,6 +380,7 @@ func (m *model) refreshPreview() tea.Cmd {
 	if !classify(e).async() {
 		m.pv = buildPreview(m.cwd, e, o)
 		m.pv.key = key
+		m.scrollToJump()
 		m.clampPreviewScroll()
 		return nil
 	}
@@ -385,6 +399,17 @@ func (m model) buildPreviewCmd(key string) tea.Cmd {
 		pv.key = key
 		return previewReadyMsg{pv}
 	}
+}
+
+// scrollToJump puts a freshly built preview's highlighted line a third of
+// the way down the pane, once per jump so the user can scroll away.
+func (m *model) scrollToJump() {
+	if m.pv.hlTo <= m.pv.hlFrom || m.jump.scrolled || m.pvPath != m.jump.path {
+		return
+	}
+	_, rows := m.geometry()
+	m.pvScroll = max(0, m.pv.hlFrom-rows/3)
+	m.jump.scrolled = true
 }
 
 func (m *model) clampPreviewScroll() {
@@ -418,12 +443,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case previewReadyMsg:
 		if msg.pv.key == m.pvKey {
 			m.pv = msg.pv
+			m.scrollToJump()
 			m.clampPreviewScroll()
 		}
 	case opDoneMsg:
 		m.finishOp(msg.res)
 	case findBatchMsg:
 		cmd = m.handleFindBatch(msg)
+	case grepBatchMsg:
+		cmd = m.handleGrepBatch(msg)
+	case grepTickMsg:
+		cmd = m.handleGrepTick(msg)
 	case undoMsg:
 		if msg.err != nil {
 			m.setMsg("undo failed: "+msg.err.Error(), true)
@@ -504,6 +534,8 @@ func (m model) handleKey(msg tea.KeyMsg) (model, tea.Cmd) {
 	case actFind:
 		m.openFind()
 		return m, m.modal.find.next()
+	case actGrep:
+		m.openGrep()
 	case actUp:
 		m.move(-1)
 	case actDown:

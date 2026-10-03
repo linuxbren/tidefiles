@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/allisonhere/tideui"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func (m model) View() string {
@@ -42,7 +44,7 @@ func (m model) View() string {
 		Panes: [3]tideui.Pane{
 			{Title: parentTitle, Content: m.renderList(m.parent, m.parentCursor, max(0, min(m.parentCursor-rows/2, len(m.parent)-rows)), inner[0], rows, false)},
 			{Title: title, Hint: hint, Focused: true, Content: m.renderList(m.entries, m.cursor, m.offset, inner[1], rows, true)},
-			{Title: pvTitle, Hint: m.pv.meta, Content: strings.Join(m.pv.lines, "\n"), ScrollOffset: m.pvScroll},
+			{Title: pvTitle, Hint: m.pv.meta, Content: strings.Join(m.previewLines(inner[2]), "\n"), ScrollOffset: m.pvScroll},
 		},
 		Status: &tideui.StatusBar{Left: m.statusLeft(), Right: statusHints},
 	}
@@ -146,4 +148,35 @@ func (m model) syncGraphics(inner [3]int, rows int) {
 	}
 	ov.key = fmt.Sprintf("%s@%d,%d", m.pv.key, ov.row, ov.col)
 	m.gfx.set(ov, m.theme.Bg)
+}
+
+// previewLines is the preview content with the jump target's line, if any,
+// painted in the selection colour across the pane's width.
+func (m model) previewLines(width int) []string {
+	if m.pv.hlTo <= m.pv.hlFrom {
+		return m.pv.lines
+	}
+	bg := m.theme.Selected
+	if bg == "" {
+		bg = m.theme.BorderFocus
+	}
+	marker := lipgloss.NewStyle().Background(bg).Render("x")
+	on := marker[:strings.Index(marker, "x")]
+	out := append([]string(nil), m.pv.lines...)
+	for i := m.pv.hlFrom; i < min(m.pv.hlTo, len(out)); i++ {
+		out[i] = paintBackground(out[i], width, on)
+	}
+	return out
+}
+
+// paintBackground applies the background sequence on to line, re-applying it
+// after every reset inside the line and padding to width.
+func paintBackground(line string, width int, on string) string {
+	if on == "" {
+		return line
+	}
+	line = strings.ReplaceAll(line, "\x1b[0m", "\x1b[0m"+on)
+	line = strings.ReplaceAll(line, "\x1b[m", "\x1b[m"+on)
+	pad := max(0, width-ansi.StringWidth(line))
+	return on + line + strings.Repeat(" ", pad) + "\x1b[0m"
 }

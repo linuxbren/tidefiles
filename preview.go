@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -79,6 +80,7 @@ type previewOpts struct {
 	width, rows  int
 	wrap, hidden bool
 	mdSource     bool // show markdown as highlighted source instead of rendered
+	line         int  // 1-based line to show and highlight (from content search); 0 for none
 	proto        gfxProto
 	cellW, cellH int
 	bg           lipgloss.Color
@@ -93,6 +95,8 @@ type preview struct {
 	lines   []string
 	img     *imgSeq // out-of-band image (sixel/kitty) drawn over the pane
 	loading bool
+	hlFrom  int // lines[hlFrom:hlTo] are the highlighted source line, when hlTo > hlFrom
+	hlTo    int
 }
 
 // buildPreview renders e (inside dir) for the preview pane.
@@ -115,7 +119,7 @@ func buildPreview(dir string, e entry, o previewOpts) preview {
 	case kindAudio:
 		return audioPreview(p, path, e, o)
 	case kindMarkdown:
-		if !o.mdSource {
+		if !o.mdSource && o.line == 0 { // a line to show means source view: rendered lines don't map back
 			return markdownPreview(p, path, e, o)
 		}
 	}
@@ -210,7 +214,16 @@ func textPreview(p preview, path string, e entry, o previewOpts) preview {
 		return p
 	}
 	defer f.Close()
-	buf, err := io.ReadAll(io.LimitReader(f, previewMaxBytes))
+	first := 1 // line number of the first line read
+	var buf []byte
+	if o.line > previewMaxLines/2 {
+		// Content search can point anywhere in a big file: read a window
+		// around the line instead of the start.
+		first = o.line - previewMaxLines/4
+		buf, err = readLinesFrom(f, first, previewMaxBytes)
+	} else {
+		buf, err = io.ReadAll(io.LimitReader(f, previewMaxBytes))
+	}
 	if err != nil {
 		p.lines = []string{"  cannot read: " + errText(err)}
 		return p
@@ -248,17 +261,60 @@ func textPreview(p preview, path string, e entry, o previewOpts) preview {
 		joined = hl
 		p.meta = lang + " · " + humanSize(e.size)
 	}
-	p.lines = fitLines(strings.Split(joined, "\n"), o, previewMaxLines)
-	if e.size > previewMaxBytes || len(p.lines) >= previewMaxLines {
+	var starts []int
+	p.lines, starts = fitLinesMap(strings.Split(joined, "\n"), o, previewMaxLines)
+	head := 0
+	if first > 1 {
+		head = 2
+		p.lines = append([]string{fmt.Sprintf("… from line %d", first), ""}, p.lines...)
+	}
+	if o.line > 0 {
+		p.meta += fmt.Sprintf(" · line %d", o.line)
+		if i := o.line - first; i >= 0 && i < len(starts) {
+			p.hlFrom, p.hlTo = head+starts[i], head+len(p.lines)-head
+			if i+1 < len(starts) {
+				p.hlTo = head + starts[i+1]
+			}
+		}
+	}
+	if first > 1 || e.size > previewMaxBytes || len(p.lines) >= previewMaxLines {
 		p.lines = append(p.lines, "", "… truncated")
 	}
 	return p
 }
 
+// readLinesFrom returns up to limit bytes of r starting at 1-based line n.
+func readLinesFrom(r io.Reader, n, limit int) ([]byte, error) {
+	br := bufio.NewReader(r)
+	for line := 1; line < n; line++ {
+		if _, err := br.ReadSlice('\n'); err != nil && err != bufio.ErrBufferFull {
+			if err == io.EOF {
+				return nil, nil
+			}
+			return nil, err
+		} else if err == bufio.ErrBufferFull {
+			line-- // a very long line: keep consuming it
+		}
+	}
+	return io.ReadAll(io.LimitReader(br, int64(limit)))
+}
+
 // fitLines wraps (or truncates) each line to o.width, keeping ANSI styling.
 func fitLines(src []string, o previewOpts, limit int) []string {
+	out, _ := fitLinesMap(src, o, limit)
+	return out
+}
+
+// fitLinesMap is fitLines that also reports where each source line starts in
+// the output (source lines past the limit are missing from starts).
+func fitLinesMap(src []string, o previewOpts, limit int) ([]string, []int) {
 	out := make([]string, 0, len(src))
+	starts := make([]int, 0, len(src))
 	for _, line := range src {
+		if len(out) >= limit {
+			break
+		}
+		starts = append(starts, len(out))
 		switch {
 		case line == "":
 			out = append(out, "")
@@ -267,11 +323,8 @@ func fitLines(src []string, o previewOpts, limit int) []string {
 		default:
 			out = append(out, ansi.Truncate(line, o.width, "…"))
 		}
-		if len(out) >= limit {
-			break
-		}
 	}
-	return out
+	return out, starts
 }
 
 // sanitize drops control characters (notably ESC) so file content can never
