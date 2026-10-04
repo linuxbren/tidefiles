@@ -3,6 +3,21 @@
 A keyboard-first terminal file manager in the [TideMail](https://github.com/allisonhere/tidemail)
 family, built on [tideui](https://github.com/allisonhere/tideui) and Bubble Tea.
 
+![tidefiles: parent folder, current folder and a syntax-highlighted preview of main.go](docs/screenshots/browse.png)
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/images.png" alt="Image preview of a picture in ~/Pictures"></td>
+    <td><img src="docs/screenshots/archive.png" alt="Browsing inside a zip archive, with its README rendered as markdown"></td>
+    <td><img src="docs/screenshots/themes.png" alt="The theme picker previewing the rose-pine theme"></td>
+  </tr>
+  <tr>
+    <td align="center">Image preview (blocks shown; sixel/kitty terminals draw the full picture)</td>
+    <td align="center">Browse inside archives</td>
+    <td align="center">Theme picker with live preview</td>
+  </tr>
+</table>
+
 - **Three panes** — parent, current folder, and a preview (yazi-style). `shift+←/→` resizes the preview, `p` hides it.
 - **A preview that understands your files** — real inline images (sixel in foot/wezterm/mlterm, kitty graphics in
   kitty/ghostty, half-block fallback anywhere else), PDF first pages, video thumbnails, syntax-highlighted code
