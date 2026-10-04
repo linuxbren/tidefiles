@@ -43,6 +43,19 @@ const (
 	actTerminal
 	actEdit
 	actCopyPath
+	actNewTab
+	actCloseTab
+	actNextTab
+	actPrevTab
+	actTab1
+	actTab2
+	actTab3
+	actTab4
+	actTab5
+	actTab6
+	actTab7
+	actTab8
+	actTab9
 	actExtract
 	actCompress
 	actHidden
@@ -127,6 +140,21 @@ var bindingGroups = []bindingGroup{
 		{actExtract, []string{"X"}, "X", "extract archive(s) here  (enter on an archive browses it)"},
 		{actCompress, []string{"Z"}, "Z", "compress into .zip or .tar.gz"},
 	}},
+	{"Tabs", []binding{
+		{actNewTab, []string{"ctrl+t"}, "ctrl+t", "new tab (this folder)"},
+		{actCloseTab, []string{"ctrl+w"}, "ctrl+w", "close tab"},
+		{actNextTab, []string{"tab"}, "tab / shift+tab", "next / previous tab"},
+		{actPrevTab, []string{"shift+tab"}, "", ""},
+		{actTab1, []string{"1"}, "1 … 9", "go to tab 1 … 9"},
+		{actTab2, []string{"2"}, "", ""},
+		{actTab3, []string{"3"}, "", ""},
+		{actTab4, []string{"4"}, "", ""},
+		{actTab5, []string{"5"}, "", ""},
+		{actTab6, []string{"6"}, "", ""},
+		{actTab7, []string{"7"}, "", ""},
+		{actTab8, []string{"8"}, "", ""},
+		{actTab9, []string{"9"}, "", ""},
+	}},
 	{"Open", []binding{
 		{actEdit, []string{"e"}, "e", "edit in $EDITOR"},
 		{actOpenWith, []string{"o"}, "o", "open with…"},
@@ -186,5 +214,7 @@ var allowedInArchive = map[action]bool{
 	actEscape: true, actFilter: true, actSort: true, actSortRev: true, actHidden: true, actWrap: true,
 	actMarkdown: true, actTogglePreview: true, actPreviewWider: true, actPreviewNarrower: true,
 	actScrollDown: true, actScrollUp: true, actRefresh: true, actTheme: true, actHelp: true, actQuit: true,
-	actExtract: true,
+	actExtract: true, actNewTab: true, actCloseTab: true, actNextTab: true, actPrevTab: true,
+	actTab1: true, actTab2: true, actTab3: true, actTab4: true, actTab5: true, actTab6: true,
+	actTab7: true, actTab8: true, actTab9: true,
 }

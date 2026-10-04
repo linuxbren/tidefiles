@@ -48,7 +48,11 @@ func main() {
 	// Save the window title and put it back on exit, so a shell left in this
 	// window isn't mistaken for tidefiles.
 	fmt.Fprint(os.Stdout, "\x1b[22;0t")
-	_, err = tea.NewProgram(newModel(abs, cfg, *cwdFile, out), tea.WithOutput(out), tea.WithAltScreen(), tea.WithMouseCellMotion()).Run()
+	m := newModel(abs, cfg, *cwdFile, out)
+	if len(cfg.Tabs) > 0 {
+		m.restoreTabs(cfg.Tabs) // last session's tabs, with the starting folder active
+	}
+	_, err = tea.NewProgram(m, tea.WithOutput(out), tea.WithAltScreen(), tea.WithMouseCellMotion()).Run()
 	fmt.Fprint(os.Stdout, "\x1b[23;0t")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "tidefiles:", err)

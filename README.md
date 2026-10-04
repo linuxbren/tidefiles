@@ -28,6 +28,9 @@ family, built on [tideui](https://github.com/allisonhere/tideui) and Bubble Tea.
 - **A modern file manager's toolbox** — select, copy / cut / paste (the system clipboard gets file lists
   for file managers and paths for terminals and editors), trash with **undo**, rename, new file/folder, properties, permissions (chmod), open with…, places and
   bookmarks, back/forward history, filter, fuzzy find across subfolders, search inside files (ripgrep when installed; `alt+r` for regex), sort, terminal here, mouse support.
+- **Tabs** — `ctrl+t` opens a tab on the current folder, `ctrl+w` closes it, `tab`/`shift+tab` or `1`…`9`
+  switch; each tab keeps its own folder, selection and history. Tabs are reopened next time, with the
+  folder you start in as the active one.
 - **Archives** — `enter` on a zip/tar/7z/rar browses it like a read-only folder (`←` leaves);
   `X` extracts archives here (into a folder named after the archive, unless it has a single
   top-level folder); `Z` compresses the selection into a `.zip` or `.tar.gz`. Reading uses `bsdtar`
@@ -76,6 +79,6 @@ Settings (theme, hidden files, wrap, sort, bookmarks) are remembered in
 
 Arrow keys first; vim keys work too. Press `?` in the app for the full list.
 `space` select · `SUPER+C`/`X`/`V` copy/cut/paste (plain `c`/`x`/`v` work too) · `d` trash · `ctrl+z` undo · `F2` rename ·
-`n`/`N` new file/folder · `/` filter · `f` find · `F` search inside files · `X` extract · `Z` compress · `s` sort · `b` places · `i` properties · `P` permissions · `o` open with · `T` theme.
+`n`/`N` new file/folder · `/` filter · `f` find · `F` search inside files · `X` extract · `Z` compress · `ctrl+t`/`ctrl+w` tabs · `s` sort · `b` places · `i` properties · `P` permissions · `o` open with · `T` theme.
 
 `SUPER+C` needs a one-time Hyprland snippet on Omarchy — see [Install](#install).

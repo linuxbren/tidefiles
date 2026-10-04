@@ -48,7 +48,7 @@ func (m model) View() string {
 
 	m.syncGraphics(inner, rows)
 	layout := tideui.Layout{
-		Width: m.width, Height: m.height, Mode: tideui.ThreeColumn,
+		Width: m.width, Height: m.height - m.topOffset(), Mode: tideui.ThreeColumn,
 		ColumnRatios: m.ratios(),
 		Panes: [3]tideui.Pane{
 			{Title: parentTitle, Content: m.renderList(m.parent, m.parentCursor, max(0, min(m.parentCursor-rows/2, len(m.parent)-rows)), inner[0], rows, false)},
@@ -68,6 +68,9 @@ func (m model) View() string {
 	case m.modal != nil:
 		ov := m.modalOverlay()
 		layout.Modal = &ov
+	}
+	if m.topOffset() > 0 {
+		return m.tabStrip() + "\n" + m.renderer.Render(layout)
 	}
 	return m.renderer.Render(layout)
 }
@@ -151,8 +154,8 @@ func (m model) syncGraphics(inner [3]int, rows int) {
 		return
 	}
 	w := m.columnWidths()
-	left := w[0] + w[1] + 1 // past the pane's left border
-	const top = 2           // top border + header row
+	left := w[0] + w[1] + 1  // past the pane's left border
+	top := 2 + m.topOffset() // tab strip, top border, header row
 	ov := &overlay{
 		row: top + max(0, (rows-img.rows)/2), col: left + max(0, (inner[2]-img.cols)/2),
 		seq: img.seq, kitty: m.proto == protoKitty,

@@ -59,9 +59,11 @@ type model struct {
 	clip     clipboard
 	titleDir string // folder the window title was last set for
 	jump     jumpTarget
-	job      *job     // the running background job, if any
-	arc      *arcView // the archive being browsed, if any
-	quitting bool     // quit once the running job has stopped
+	job      *job       // the running background job, if any
+	arc      *arcView   // the archive being browsed, if any
+	quitting bool       // quit once the running job has stopped
+	tabs     []tabState // all tabs; the fields above describe tabs[tab]
+	tab      int
 	undo     []undoItem
 
 	hist []string
@@ -133,6 +135,7 @@ func newModel(dir string, cfg config, cwdFile string, gfx *gfxOut) model {
 	}
 	m.applyTheme()
 	m.reload("")
+	m.tabs = make([]tabState, 1)
 	return m
 }
 
@@ -211,7 +214,7 @@ func (m model) geometry() (inner [3]int, rows int) {
 		}
 		inner[i] = max(1, w)
 	}
-	mainH := max(1, m.height-1)
+	mainH := max(1, m.height-1-m.topOffset())
 	if mainH > 2 {
 		mainH -= 2
 	}
@@ -594,6 +597,23 @@ func (m model) handleKey(msg tea.KeyMsg) (model, tea.Cmd) {
 		return m, m.quit()
 	case actHelp:
 		m.modal = &modal{kind: mHelp, title: "keys"}
+	case actNewTab:
+		m.newTab()
+		m.setMsg("new tab ("+plural(len(m.tabs), "tab")+" open) · ctrl+w closes it", false)
+	case actCloseTab:
+		if !m.closeTab() {
+			m.setMsg("that's the last tab (q quits)", false)
+		}
+	case actNextTab, actPrevTab:
+		if len(m.tabs) > 1 {
+			step := 1
+			if act == actPrevTab {
+				step = len(m.tabs) - 1
+			}
+			m.switchTab((m.tab + step) % len(m.tabs))
+		}
+	case actTab1, actTab2, actTab3, actTab4, actTab5, actTab6, actTab7, actTab8, actTab9:
+		m.switchTab(int(act - actTab1))
 	case actFind:
 		m.openFind()
 		return m, m.modal.find.next()
@@ -922,7 +942,13 @@ func (m model) handleMouse(msg tea.MouseMsg) (model, tea.Cmd) {
 	}
 	w := m.columnWidths()
 	_, rows := m.geometry()
-	row := msg.Y - 2 // border + header
+	if m.topOffset() > 0 && msg.Y == 0 {
+		if msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionPress {
+			m.switchTab(m.tabAt(msg.X))
+		}
+		return m, nil
+	}
+	row := msg.Y - 2 - m.topOffset() // tab strip, border, header
 	inRows := row >= 0 && row < rows
 	col := 0
 	switch {
@@ -974,6 +1000,13 @@ func (m model) handleMouse(msg tea.MouseMsg) (model, tea.Cmd) {
 // ---- misc --------------------------------------------------------------
 
 func (m model) quit() tea.Cmd {
+	m.cfg.Tabs = m.tabDirs()
+	m.cfg.save()
+	for _, t := range m.tabs {
+		if t.arc != nil {
+			t.arc.close()
+		}
+	}
 	m.leaveArchive()
 	m.gfx.set(nil, "")
 	if m.cwdFile != "" {
