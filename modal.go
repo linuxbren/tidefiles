@@ -48,6 +48,7 @@ type modal struct {
 	perm    *permEdit
 	find    *findState
 	grep    *grepState
+	pal     *paletteState
 }
 
 // ---- text input --------------------------------------------------------
@@ -287,7 +288,9 @@ func (m model) handleModalKey(msg tea.KeyMsg) (model, tea.Cmd) {
 	md := m.modal
 	key := msg.String()
 	switch md.kind {
-	case mHelp, mInfo:
+	case mHelp:
+		return m.handlePaletteKey(md, msg)
+	case mInfo:
 		switch key {
 		case "?", "esc", "q", "enter", "i":
 			m.modal = nil
@@ -494,31 +497,10 @@ func (m model) modalOverlay() tideui.Overlay {
 		}
 		body = append(body, "", hints(h...))
 	case mHelp:
-		lines := m.helpLines()
-		rows := max(3, m.height-8)
-		md.scroll = max(0, min(md.scroll, len(lines)-rows))
-		end := min(len(lines), md.scroll+rows)
-		body = append(body, lines[md.scroll:end]...)
-		body = append(body, "", hints(tideui.SoftHint{Key: "↑↓", Label: "scroll"}, tideui.SoftHint{Key: "? / esc", Label: "close"}))
+		body = append(body, m.paletteBody(md, inner)...)
 	}
 	return r.SoftPanelOverlay(tideui.SoftPanel{
 		Prefix: "tidefiles", Title: md.title, Width: width,
 		Content: r.RenderSoftBody(width, strings.Join(body, "\n")),
 	})
-}
-
-func (m model) helpLines() []string {
-	var out []string
-	for _, g := range bindingGroups {
-		if len(out) > 0 {
-			out = append(out, "")
-		}
-		out = append(out, m.renderer.Styles.DetailMeta.Render(g.title))
-		for _, b := range g.bindings {
-			if b.display != "" {
-				out = append(out, fmt.Sprintf("  %-18s %s", b.display, b.desc))
-			}
-		}
-	}
-	return out
 }

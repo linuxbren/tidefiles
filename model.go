@@ -82,6 +82,7 @@ type model struct {
 	syn       syntax
 	gfx       *gfxOut
 	proto     gfxProto
+	autoProto gfxProto // what detection picked at start, for image mode "auto"
 	cellW     int
 	cellH     int
 	sig       string
@@ -122,7 +123,7 @@ func newModel(dir string, cfg config, cwdFile string, gfx *gfxOut) model {
 	cw, ch := cellPixels()
 	m := model{
 		gfx:       gfx,
-		proto:     detectProto(),
+		autoProto: detectProto(),
 		cellW:     cw,
 		cellH:     ch,
 		cwd:       dir,
@@ -133,6 +134,7 @@ func newModel(dir string, cfg config, cwdFile string, gfx *gfxOut) model {
 		cwdFile:   cwdFile,
 		hist:      []string{dir},
 	}
+	m.proto = imageProto(cfg.ImageMode, m.autoProto)
 	m.applyTheme()
 	m.reload("")
 	m.tabs = make([]tabState, 1)
@@ -564,39 +566,53 @@ func (m *model) finishOp(res opResult) {
 
 func (m model) handleKey(msg tea.KeyMsg) (model, tea.Cmd) {
 	m.msg = ""
-	_, rows := m.geometry()
-	cur, hasCur := m.current()
-	curPath := filepath.Join(m.cwd, cur.name)
-
 	act := keyIndex[msg.String()]
 	if msg.Paste {
 		// The terminal's own paste (Omarchy's Super+V arrives as Shift+Insert,
 		// which foot turns into a bracketed paste) means paste files here.
 		act = actPaste
 	}
+	if m, cmd, stop := m.guard(act); stop {
+		return m, cmd
+	}
+	return m.perform(act)
+}
+
+// guard stops actions that can't run now: file changes while a job runs
+// (esc and q ask about the job instead), and changes inside an archive.
+func (m model) guard(act action) (model, tea.Cmd, bool) {
 	if m.job != nil {
 		switch {
 		case act == actEscape:
 			label := strings.ToLower(m.job.prog.label())
 			m.openConfirm("canceljob", "stop "+strings.ToLower(m.job.prog.getVerb()), []string{"Stop " + label + "?", m.job.stopNote()}, nil)
-			return m, nil
+			return m, nil, true
 		case act == actQuit:
 			m.openConfirm("quitjob", "quit", []string{m.job.prog.label() + " is still running.", "Stop it and quit? " + m.job.stopNote()}, nil)
-			return m, nil
+			return m, nil, true
 		case changesFiles[act]:
 			m.setMsg("busy: "+strings.ToLower(m.job.prog.label())+" (esc stops it)", true)
-			return m, nil
+			return m, nil, true
 		}
 	}
 	if m.arc != nil && !allowedInArchive[act] {
 		m.setMsg("read-only inside an archive: X extracts it", true)
-		return m, nil
+		return m, nil, true
 	}
+	return m, nil, false
+}
+
+// perform runs an action, from a key or the help palette. Callers check the
+// busy and read-only guards first (see guard).
+func (m model) perform(act action) (model, tea.Cmd) {
+	_, rows := m.geometry()
+	cur, hasCur := m.current()
+	curPath := filepath.Join(m.cwd, cur.name)
 	switch act {
 	case actQuit:
 		return m, m.quit()
 	case actHelp:
-		m.modal = &modal{kind: mHelp, title: "keys"}
+		m.openPalette()
 	case actNewTab:
 		m.newTab()
 		m.setMsg("new tab ("+plural(len(m.tabs), "tab")+" open) · ctrl+w closes it", false)
@@ -737,7 +753,7 @@ func (m model) handleKey(msg tea.KeyMsg) (model, tea.Cmd) {
 		if len(paths) == 0 {
 			break
 		}
-		cut := keyIndex[msg.String()] == actCut
+		cut := act == actCut
 		m.clip = clipboard{paths, cut}
 		verb, doing := "Copied", "copying…"
 		if cut {
@@ -874,7 +890,7 @@ func (m model) handleKey(msg tea.KeyMsg) (model, tea.Cmd) {
 		m.setMsg(map[bool]string{true: "preview hidden", false: "preview shown"}[m.cfg.HidePreview], false)
 	case actPreviewWider, actPreviewNarrower:
 		step := ratioStep
-		if keyIndex[msg.String()] == actPreviewNarrower {
+		if act == actPreviewNarrower {
 			step = -step
 		}
 		m.cfg.PreviewRatio = math.Round(max(minPreviewRatio, min(maxPreviewRatio, m.cfg.PreviewRatio+step))*100) / 100

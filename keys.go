@@ -176,7 +176,7 @@ var bindingGroups = []bindingGroup{
 		{actTheme, []string{"T"}, "T", "theme picker"},
 	}},
 	{"App", []binding{
-		{actHelp, []string{"?"}, "?", "this help"},
+		{actHelp, []string{"?"}, "?", "help: every action (type to search, enter runs)"},
 		{actQuit, []string{"q", "ctrl+c"}, "q", "quit"},
 	}},
 }

@@ -23,7 +23,9 @@ family, built on [tideui](https://github.com/allisonhere/tideui) and Bubble Tea.
   kitty/ghostty, half-block fallback anywhere else), PDF first pages, video thumbnails, syntax-highlighted code
   in your Omarchy colors, rendered markdown (`m` shows the source), pretty-printed JSON, archive contents, audio tags, folder contents.
 - **Word-wrapped preview** — long lines wrap at word boundaries; `w` toggles truncation.
-- **Shortcut strip + help** — common keys are always in the status bar; `?` opens the full list.
+- **Shortcut strip + help palette** — common keys are always in the status bar. `?` lists every action
+  by category with its key; type to filter (names, synonyms or keys), `enter` runs it. It also holds the
+  settings without a key (sort mode, image previews), and your recent actions come first.
 - **Follows your Omarchy theme** — live, no restart. `T` opens a theme picker.
 - **A modern file manager's toolbox** — select, copy / cut / paste (the system clipboard gets file lists
   for file managers and paths for terminals and editors), trash with **undo**, rename, new file/folder, properties, permissions (chmod), open with…, places and
@@ -99,7 +101,7 @@ Settings (theme, hidden files, wrap, sort, bookmarks) are remembered in
 
 ## Keys
 
-Arrow keys first; vim keys work too. Press `?` in the app for the full list.
+Arrow keys first; vim keys work too. Press `?` for every action: type to find one, `enter` runs it.
 `space` select · `SUPER+C`/`X`/`V` copy/cut/paste (plain `c`/`x`/`v` work too) · `d` trash · `ctrl+z` undo · `F2` rename ·
 `n`/`N` new file/folder · `/` filter · `f` find · `F` search inside files · `X` extract · `Z` compress · `ctrl+t`/`ctrl+w` tabs · `s` sort · `b` places · `i` properties · `P` permissions · `o` open with · `T` theme.
 
