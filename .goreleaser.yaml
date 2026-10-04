@@ -1,6 +1,7 @@
 # Release builds: pushing a v* tag runs .github/workflows/release.yml, which
-# runs GoReleaser to build static Linux binaries and attach them, with
-# checksums, to the GitHub release. See "Releasing" in README.md.
+# runs GoReleaser to build static Linux binaries and packages and attach
+# them, with checksums, to the GitHub release. See RELEASING.md.
+# tidefiles is Linux only.
 version: 2
 project_name: tidefiles
 
@@ -22,7 +23,8 @@ builds:
 archives:
   - id: tidefiles
     formats: [tar.gz]
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    # No version in the name, so .../releases/latest/download/<name> always works.
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
       - README.md
@@ -32,6 +34,65 @@ checksum:
   name_template: checksums.txt
   algorithm: sha256
 
+nfpms:
+  - id: packages
+    package_name: tidefiles
+    file_name_template: "{{ .PackageName }}_{{ .Arch }}"
+    vendor: linuxbren
+    maintainer: linuxbren <linuxbren@gmail.com>
+    homepage: https://github.com/linuxbren/tidefiles
+    description: Keyboard-first terminal file manager with previews, tabs and archive browsing
+    license: MIT
+    formats: [deb, rpm, apk]
+    bindir: /usr/bin
+    section: utils
+    contents:
+      - src: README.md
+        dst: /usr/share/doc/tidefiles/README.md
+      - src: LICENSE
+        dst: /usr/share/licenses/tidefiles/LICENSE
+      - src: contrib/omarchy-super-c.lua
+        dst: /usr/share/tidefiles/omarchy-super-c.lua
+    # Optional helpers (clipboard, archives, faster search, previews), under
+    # each distro's own package names.
+    overrides:
+      deb:
+        recommends: [wl-clipboard, libarchive-tools, ripgrep]
+        suggests: [xclip, imagemagick, poppler-utils, ffmpegthumbnailer, ffmpeg, xdg-utils]
+      rpm:
+        recommends: [wl-clipboard, bsdtar, ripgrep]
+        suggests: [xclip, ImageMagick, poppler-utils, ffmpegthumbnailer, ffmpeg, xdg-utils]
+      apk:
+        recommends: [wl-clipboard, libarchive-tools, ripgrep]
+
+# AUR "tidefiles-bin", built from the release tarballs. AUR registration is
+# closed for now, so the PKGBUILD is only generated (dist/aur/); to publish,
+# set skip_upload: false and add the AUR_KEY secret (see RELEASING.md).
+aurs:
+  - name: tidefiles-bin
+    homepage: https://github.com/linuxbren/tidefiles
+    description: Keyboard-first terminal file manager with previews, tabs and archive browsing (binary release)
+    maintainers: ["linuxbren <linuxbren@gmail.com>"]
+    license: MIT
+    provides: [tidefiles]
+    conflicts: [tidefiles]
+    depends: [wl-clipboard]
+    optdepends:
+      - "ripgrep: faster search inside files"
+      - "libarchive: browse and extract archives (bsdtar)"
+      - "imagemagick: image previews"
+      - "poppler: PDF previews"
+      - "ffmpegthumbnailer: video previews"
+      - "xdg-terminal-exec: terminal here / new window"
+    git_url: "ssh://aur@aur.archlinux.org/tidefiles-bin.git"
+    private_key: "{{ .Env.AUR_KEY }}"
+    skip_upload: true
+    package: |-
+      install -Dm755 tidefiles "${pkgdir}/usr/bin/tidefiles"
+      install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/tidefiles-bin/LICENSE"
+      install -Dm644 README.md "${pkgdir}/usr/share/doc/tidefiles-bin/README.md"
+      install -Dm644 contrib/omarchy-super-c.lua "${pkgdir}/usr/share/tidefiles/omarchy-super-c.lua"
+
 changelog:
   disable: true # release notes are written by hand (gh release edit)
 
@@ -39,6 +100,6 @@ release:
   github:
     owner: linuxbren
     name: tidefiles
-  name_template: "v{{ .Version }} (preview)"
-  prerelease: "true" # pre-1.0 releases are previews; switch to auto at 1.0
+  name_template: "v{{ .Version }}"
+  prerelease: "false" # every release is a normal release (shows as Latest)
   mode: keep-existing # never overwrite notes already on the release

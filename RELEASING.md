@@ -8,8 +8,10 @@
    git push origin main vX.Y.Z
    ```
    The tag starts `.github/workflows/release.yml`, which runs GoReleaser (`.goreleaser.yaml`): it
-   creates the GitHub release "vX.Y.Z (preview)" (a pre-release while we're below 1.0) and attaches
-   static linux amd64/arm64 tarballs and `checksums.txt`.
+   creates the GitHub release "vX.Y.Z" — always a normal release, never a pre-release, so it shows
+   as Latest and `/releases/latest/download/…` links work — and attaches, for linux amd64 and
+   arm64: `tidefiles_linux_<arch>.tar.gz`, `tidefiles_<arch>.deb` / `.rpm` / `.apk`, and
+   `checksums.txt`. tidefiles is Linux only.
 3. Add the release notes once the workflow has finished:
    ```sh
    gh release edit vX.Y.Z --notes-file notes.md
@@ -26,3 +28,11 @@
 
 Try a release build locally without publishing: `goreleaser release --snapshot --clean` (output in
 `dist/`, which is git-ignored).
+
+## AUR (when registration reopens)
+
+GoReleaser already generates `tidefiles-bin` (built from the release tarballs) into `dist/aur/`.
+To publish it on every release: create an AUR account, add an SSH public key under My Account, put
+the private key in the repository secret `AUR_KEY`, pass it to GoReleaser in `release.yml`
+(`AUR_KEY: ${{ secrets.AUR_KEY }}`), and set `skip_upload: false` under `aurs:` in
+`.goreleaser.yaml`. The source package in `contrib/arch` can be submitted as `tidefiles` the same way.

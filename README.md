@@ -55,20 +55,31 @@ to override terminal detection.
 
 ## Install
 
-tidefiles runs on **Linux only** (x86_64 and arm64; built and tested on Omarchy: Hyprland + foot).
-The system clipboard needs a Wayland session and `wl-clipboard`. Pick one of:
+tidefiles runs on **Linux** (x86_64 and arm64). It's built on Omarchy (Hyprland + foot) and works on
+other desktops and in plain terminals too.
+The system clipboard uses `wl-clipboard` on Wayland, or `xclip`/`xsel` on X11; without one, copy and
+paste still work inside tidefiles. Outside Omarchy it uses its built-in themes (`T` picks one). Pick one of:
 
-**Download a release binary** (no Go needed). From v0.7.0 on, every [release](https://github.com/linuxbren/tidefiles/releases)
-has static `tidefiles_<version>_linux_<amd64|arm64>.tar.gz` archives and a `checksums.txt`:
+**Download a release binary** (no Go needed; static, x86_64 or arm64):
 
 ```sh
-ver=0.7.0 arch=amd64   # or arch=arm64
-base=https://github.com/linuxbren/tidefiles/releases/download/v$ver
-curl -LO $base/tidefiles_${ver}_linux_$arch.tar.gz -LO $base/checksums.txt
-sha256sum --ignore-missing -c checksums.txt
-tar xzf tidefiles_${ver}_linux_$arch.tar.gz tidefiles
+arch=amd64   # or arm64
+curl -L https://github.com/linuxbren/tidefiles/releases/latest/download/tidefiles_linux_$arch.tar.gz | tar xz tidefiles
 install -Dm755 tidefiles ~/.local/bin/tidefiles
 ```
+
+Each [release](https://github.com/linuxbren/tidefiles/releases) also lists a `checksums.txt` to verify the download.
+
+**Debian / Ubuntu, Fedora / openSUSE, Alpine:** download the package for your system from the
+[latest release](https://github.com/linuxbren/tidefiles/releases/latest) and install it:
+
+```sh
+sudo apt install ./tidefiles_amd64.deb      # Debian, Ubuntu
+sudo dnf install ./tidefiles_amd64.rpm      # Fedora (zypper install … on openSUSE)
+sudo apk add --allow-untrusted tidefiles_amd64.apk   # Alpine
+```
+
+They pull in the optional helpers (`wl-clipboard`, `bsdtar`, `ripgrep`) as recommended packages.
 
 **Arch Linux: build a package** with the PKGBUILD in [`contrib/arch`](contrib/arch) (it builds the release it
 names from source, runs the tests, and pulls in the dependencies):
