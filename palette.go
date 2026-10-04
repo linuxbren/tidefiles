@@ -158,6 +158,7 @@ func (m model) commands() []command {
 		{title: onOff(m.cfg.MarkdownSource, "Render markdown", "Show markdown source"), synonyms: "md preview raw", act: actMarkdown, group: "View"},
 		{title: "Refresh", synonyms: "reload", act: actRefresh, group: "View"},
 
+		{title: "Settings…", synonyms: "preferences options configure tabs startup", act: actSettings, group: "Settings"},
 		{title: "Theme…", synonyms: "colors colours appearance omarchy", act: actTheme, group: "Settings"},
 		{title: onOff(m.cfg.ShowHidden, "Hide hidden files", "Show hidden files"), synonyms: "dotfiles hidden toggle", act: actHidden, group: "Settings"},
 		{title: onOff(m.cfg.SortDesc, "Sort ascending", "Sort descending (reverse)"), synonyms: "order reverse", act: actSortRev, group: "Settings"},

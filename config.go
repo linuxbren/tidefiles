@@ -20,7 +20,8 @@ type config struct {
 
 	MarkdownSource bool `json:"markdown_source,omitempty"` // preview markdown as source, not rendered
 
-	Tabs []string `json:"tabs,omitempty"` // tab folders at the last quit, reopened at start
+	Tabs        []string `json:"tabs,omitempty"`          // tab folders at the last quit
+	TabsOnStart string   `json:"tabs_on_start,omitempty"` // "" restore, "nofolder" only without a folder argument, "never"
 
 	ImageMode string   `json:"image_mode,omitempty"` // "", kitty, sixel or blocks ("" detects)
 	Recent    []string `json:"recent,omitempty"`     // help-palette actions, most recent first

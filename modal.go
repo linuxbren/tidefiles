@@ -26,6 +26,7 @@ const (
 	mPerms
 	mFind
 	mGrep
+	mSettings
 )
 
 type menuItem struct {
@@ -319,6 +320,8 @@ func (m model) handleModalKey(msg tea.KeyMsg) (model, tea.Cmd) {
 		return m.handleFindKey(md, msg)
 	case mGrep:
 		return m.handleGrepKey(md, msg)
+	case mSettings:
+		return m.handleSettingsKey(md, key)
 	case mInput:
 		switch key {
 		case "esc":
@@ -484,6 +487,8 @@ func (m model) modalOverlay() tideui.Overlay {
 		body = append(body, m.findBody(md, inner)...)
 	case mGrep:
 		body = append(body, m.grepBody(md, inner)...)
+	case mSettings:
+		body = append(body, m.settingsBody(md, inner)...)
 	case mMenu:
 		rows := max(3, m.height-10)
 		first := max(0, min(md.sel-rows/2, len(md.items)-rows))

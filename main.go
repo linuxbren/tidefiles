@@ -49,7 +49,7 @@ func main() {
 	// window isn't mistaken for tidefiles.
 	fmt.Fprint(os.Stdout, "\x1b[22;0t")
 	m := newModel(abs, cfg, *cwdFile, out)
-	if len(cfg.Tabs) > 0 {
+	if len(cfg.Tabs) > 0 && restoreTabsAtStart(cfg, flag.NArg() > 0) {
 		m.restoreTabs(cfg.Tabs) // last session's tabs, with the starting folder active
 	}
 	_, err = tea.NewProgram(m, tea.WithOutput(out), tea.WithAltScreen(), tea.WithMouseCellMotion()).Run()

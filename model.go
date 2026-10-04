@@ -939,6 +939,8 @@ func (m model) perform(act action) (model, tea.Cmd) {
 	case actRefresh:
 		m.reload(m.curName())
 		m.setMsg("refreshed", false)
+	case actSettings:
+		m.openSettings()
 	case actTheme:
 		m.openPicker()
 	case actTogglePreview:
