@@ -172,3 +172,12 @@ func TestDefaultArchiveName(t *testing.T) {
 		t.Errorf("several: %q", got)
 	}
 }
+
+func TestStoppedMoveDesc(t *testing.T) {
+	if got := stoppedMoveDesc(12, 40); !strings.HasPrefix(got, "Moved 12 of 40 — stopped") {
+		t.Errorf("%q", got)
+	}
+	if got := stoppedMoveDesc(0, 3); !strings.HasPrefix(got, "Moved 0 of 3 — stopped") {
+		t.Errorf("%q", got)
+	}
+}

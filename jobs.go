@@ -313,7 +313,7 @@ func pasteJob(ctx context.Context, p *progress, dir string, items []string, cut 
 		res.focus = filepath.Base(done[0].dst)
 		res.desc = fmt.Sprintf("%s %s", past, plural(len(done), "item"))
 		if stopped {
-			res.desc = fmt.Sprintf("Stopped moving: moved %d of %d items; the rest are untouched", len(done), len(plans))
+			res.desc = stoppedMoveDesc(len(done), len(plans))
 		}
 		res.undo = func() error {
 			for _, pr := range done {
@@ -332,9 +332,15 @@ func pasteJob(ctx context.Context, p *progress, dir string, items []string, cut 
 			return nil
 		}
 	} else if stopped {
-		res.desc = "Stopped moving; nothing was moved"
+		res.desc = stoppedMoveDesc(0, len(plans))
 	}
 	return res
+}
+
+// stoppedMoveDesc reports a stopped move: what moved stays moved (its
+// originals are gone), the rest stayed where it was.
+func stoppedMoveDesc(moved, total int) string {
+	return fmt.Sprintf("Moved %d of %d — stopped; the rest are where they were", moved, total)
 }
 
 func copyPathCtx(ctx context.Context, src, dst string, p *progress) error {
