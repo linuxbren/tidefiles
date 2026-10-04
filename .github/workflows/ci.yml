@@ -27,3 +27,20 @@ jobs:
         run: |
           CGO_ENABLED=0 GOARCH=amd64 go build -trimpath -o /dev/null .
           CGO_ENABLED=0 GOARCH=arm64 go build -trimpath -o /dev/null .
+
+  nix:
+    # Builds the flake (and runs the tests inside Nix's sandbox) and runs the
+    # result, so `nix run github:linuxbren/tidefiles` keeps working. Fails if
+    # go.mod/go.sum changed without updating vendorHash in flake.nix.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: experimental-features = nix-command flakes
+      - name: nix build
+        run: nix build -L .#tidefiles
+      - name: Run it
+        run: |
+          ./result/bin/tidefiles --version
+          nix run . -- --version

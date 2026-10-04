@@ -2,6 +2,9 @@
 
 1. Make sure `main` is green in CI (`.github/workflows/ci.yml`: gofmt, `go vet`, `go test -race`,
    amd64 + arm64 builds).
+   Before tagging, set `version` in `flake.nix` to the new version and commit it. Whenever
+   `go.mod`/`go.sum` changed, also update `vendorHash` there: set it to `pkgs.lib.fakeHash`, run
+   `nix build`, and copy the hash it reports (the CI `nix` job fails until it matches).
 2. Tag and push:
    ```sh
    git tag -a vX.Y.Z -m "tidefiles vX.Y.Z"

@@ -89,6 +89,9 @@ git clone https://github.com/linuxbren/tidefiles && cd tidefiles/contrib/arch
 makepkg -si
 ```
 
+**Nix** (flakes): `nix run github:linuxbren/tidefiles`, or add the flake's `packages.default` to your
+configuration.
+
 **With Go** (1.27 or newer):
 
 ```sh
