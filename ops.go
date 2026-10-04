@@ -2,9 +2,9 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/url"
 	"os"
 	"os/exec"
@@ -60,61 +60,7 @@ func uniqueDest(dir, name string) string {
 
 // ---- copy / move -------------------------------------------------------
 
-func copyPath(src, dst string) error {
-	if dst == src || strings.HasPrefix(dst, src+string(filepath.Separator)) {
-		return fmt.Errorf("cannot copy %s into itself", filepath.Base(src))
-	}
-	return copyTree(src, dst)
-}
-
-func copyTree(src, dst string) error {
-	info, err := os.Lstat(src)
-	if err != nil {
-		return err
-	}
-	switch {
-	case info.Mode()&os.ModeSymlink != 0:
-		target, err := os.Readlink(src)
-		if err != nil {
-			return err
-		}
-		return os.Symlink(target, dst)
-	case info.IsDir():
-		if err := os.Mkdir(dst, info.Mode().Perm()|0o700); err != nil {
-			return err
-		}
-		des, err := os.ReadDir(src)
-		if err != nil {
-			return err
-		}
-		for _, de := range des {
-			if err := copyTree(filepath.Join(src, de.Name()), filepath.Join(dst, de.Name())); err != nil {
-				return err
-			}
-		}
-		return os.Chmod(dst, info.Mode().Perm())
-	case info.Mode().IsRegular():
-		in, err := os.Open(src)
-		if err != nil {
-			return err
-		}
-		defer in.Close()
-		out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm())
-		if err != nil {
-			return err
-		}
-		if _, err := io.Copy(out, in); err != nil {
-			out.Close()
-			return err
-		}
-		if err := out.Close(); err != nil {
-			return err
-		}
-		return os.Chtimes(dst, time.Now(), info.ModTime())
-	default:
-		return fmt.Errorf("%s: unsupported file type", filepath.Base(src))
-	}
-}
+func copyPath(src, dst string) error { return copyPathCtx(context.Background(), src, dst, nil) }
 
 // movePath renames src to dst, falling back to copy+delete across filesystems.
 // It refuses to overwrite an existing dst.
@@ -133,56 +79,9 @@ func movePath(src, dst string) error {
 	return os.RemoveAll(src)
 }
 
-// pasteInto copies or moves items into dir. Name conflicts are resolved by
-// renaming the incoming item ("name (copy)"), never by overwriting.
+// pasteInto copies or moves items into dir; see pasteJob.
 func pasteInto(dir string, items []string, cut bool) opResult {
-	type pair struct{ src, dst string }
-	var done []pair
-	var firstErr error
-	for _, src := range items {
-		base := filepath.Base(src)
-		if !exists(src) || (cut && filepath.Dir(src) == dir) {
-			continue
-		}
-		dst := uniqueDest(dir, base)
-		var err error
-		if cut {
-			err = movePath(src, dst)
-		} else {
-			err = copyPath(src, dst)
-		}
-		if err != nil {
-			firstErr = err
-			break
-		}
-		done = append(done, pair{src, dst})
-	}
-	verb := "Pasted"
-	if cut {
-		verb = "Moved"
-	}
-	res := opResult{err: firstErr}
-	if len(done) > 0 {
-		res.focus = filepath.Base(done[0].dst)
-		res.desc = fmt.Sprintf("%s %s", verb, plural(len(done), "item"))
-		res.undo = func() error {
-			for _, p := range done {
-				if cut {
-					back := p.src
-					if exists(back) {
-						back = uniqueDest(filepath.Dir(p.src), filepath.Base(p.src))
-					}
-					if err := movePath(p.dst, back); err != nil {
-						return err
-					}
-				} else if _, err := trashPath(p.dst); err != nil {
-					return err
-				}
-			}
-			return nil
-		}
-	}
-	return res
+	return pasteJob(context.Background(), &progress{}, dir, items, cut)
 }
 
 func plural(n int, word string) string {

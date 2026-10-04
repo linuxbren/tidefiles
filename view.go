@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/allisonhere/tideui"
 	"github.com/charmbracelet/lipgloss"
@@ -29,6 +30,14 @@ func (m model) View() string {
 		hint = "/" + m.filter + "  " + hint
 	}
 	title := tildePath(m.cwd)
+	if m.arc != nil {
+		// The archive location leads: titles are cut from the right.
+		title = m.arc.label() + "  in " + tildePath(m.cwd)
+		parentTitle = tildePath(m.cwd)
+		if m.arc.dir != "" {
+			parentTitle = tildePath(m.cwd) + "/" + filepath.Base(m.arc.file)
+		}
+	}
 	if m.inTrash() {
 		title = "Trash"
 	}
@@ -64,6 +73,9 @@ func (m model) View() string {
 }
 
 func (m model) statusLeft() string {
+	if m.job != nil && !m.msgErr {
+		return m.job.status(time.Now())
+	}
 	if m.msg != "" {
 		if m.msgErr {
 			return m.renderer.Styles.StatusError.Render(m.msg)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -386,6 +387,21 @@ func (m model) acceptInput(md *modal) (model, tea.Cmd) {
 	case "newfile", "newfolder":
 		dir, folder := m.cwd, md.purpose == "newfolder"
 		return m, m.run(func() opResult { return createOp(dir, val, folder) })
+	case "compress":
+		if _, err := compressFormat(val); err != nil || validName(val) != nil || exists(filepath.Join(m.cwd, val)) {
+			why := "the name must end in .zip or .tar.gz"
+			if err == nil && validName(val) != nil {
+				why = validName(val).Error()
+			} else if err == nil {
+				why = val + " already exists"
+			}
+			m.openInput("compress", "compress", "Archive name: "+why, val, md.targets)
+			return m, nil
+		}
+		dir, items := m.cwd, md.targets
+		return m, m.startJob("Compressing", plural(len(items), "item"), func(ctx context.Context, p *progress) opResult {
+			return compressJob(ctx, p, dir, items, val)
+		})
 	case "goto":
 		p := expandPath(val, m.cwd)
 		if fi, err := os.Stat(p); err != nil {
@@ -408,6 +424,14 @@ func (m model) runConfirmed(md *modal) (model, tea.Cmd) {
 		return m, m.run(func() opResult { return purgeItems(paths) })
 	case "emptytrash":
 		return m, m.run(emptyTrash)
+	case "canceljob", "quitjob":
+		if m.job != nil {
+			m.job.cancel()
+			m.quitting = md.purpose == "quitjob"
+			m.setMsg("stopping…", false)
+		} else if md.purpose == "quitjob" {
+			return m, m.quit()
+		}
 	}
 	return m, nil
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"os"
@@ -58,6 +59,9 @@ type model struct {
 	clip     clipboard
 	titleDir string // folder the window title was last set for
 	jump     jumpTarget
+	job      *job     // the running background job, if any
+	arc      *arcView // the archive being browsed, if any
+	quitting bool     // quit once the running job has stopped
 	undo     []undoItem
 
 	hist []string
@@ -230,6 +234,10 @@ func (m model) inTrash() bool { return m.cwd == trashFilesDir() }
 // reload re-reads cwd and its parent and rebuilds the listing, putting the
 // cursor on focus (or the remembered selection when focus is empty).
 func (m *model) reload(focus string) {
+	if m.arc != nil {
+		m.reloadArchive(focus)
+		return
+	}
 	ents, err := readDir(m.cwd, m.cfg.ShowHidden)
 	if err != nil {
 		m.setMsg("cannot read "+tildePath(m.cwd)+": "+errText(err), true)
@@ -317,6 +325,7 @@ func (m *model) move(delta int) {
 
 // navigate changes directory. record adds the move to the back/forward history.
 func (m *model) navigate(dir, focus string, record bool) {
+	m.leaveArchive()
 	if _, err := os.ReadDir(dir); err != nil {
 		m.setMsg("cannot open "+tildePath(dir)+": "+errText(err), true)
 		return
@@ -370,7 +379,11 @@ func (m *model) refreshPreview() tea.Cmd {
 		return nil
 	}
 	o := m.previewOpts()
-	key := fmt.Sprintf("%s|%s|%d|%d|%t|%t|%t|%d|%d|%s|%dx%d|%s|%s", m.cwd, e.name, o.width, o.rows, o.wrap, o.hidden,
+	where := m.cwd
+	if m.arc != nil {
+		where = m.arc.file + "|" + m.arc.dir // inside an archive
+	}
+	key := fmt.Sprintf("%s|%s|%d|%d|%t|%t|%t|%d|%d|%s|%dx%d|%s|%s", where, e.name, o.width, o.rows, o.wrap, o.hidden,
 		o.mdSource, o.line, e.mod.UnixNano(), o.proto, o.cellW, o.cellH, o.bg, o.syn.kw)
 	if key == m.pvKey {
 		return nil
@@ -380,7 +393,7 @@ func (m *model) refreshPreview() tea.Cmd {
 		m.pvScroll = 0
 	}
 	m.pvKey, m.pvPath = key, path
-	if !classify(e).async() {
+	if !classify(e).async() && m.arc == nil {
 		m.pv = buildPreview(m.cwd, e, o)
 		m.pv.key = key
 		m.scrollToJump()
@@ -397,6 +410,14 @@ func (m model) buildPreviewCmd(key string) tea.Cmd {
 		return nil
 	}
 	dir, o := m.cwd, m.previewOpts()
+	if v := m.arc; v != nil {
+		adir := v.dir
+		return func() tea.Msg {
+			pv := arcPreview(v, adir, e, o)
+			pv.key = key
+			return previewReadyMsg{pv}
+		}
+	}
 	return func() tea.Msg {
 		pv := buildPreview(dir, e, o)
 		pv.key = key
@@ -453,6 +474,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.finishOp(msg.res)
 	case findBatchMsg:
 		cmd = m.handleFindBatch(msg)
+	case jobTickMsg:
+		if m.job != nil && m.job.id == msg.id {
+			cmd = jobTick(msg.id) // keeps the progress bar moving
+		}
+	case jobDoneMsg:
+		if m.job != nil && m.job.id == msg.id {
+			m.job = nil
+			if m.quitting {
+				return m, m.quit()
+			}
+			m.finishOp(msg.res)
+		}
+	case arcOpenedMsg:
+		switch {
+		case msg.err != nil:
+			m.setMsg(msg.err.Error(), true)
+		case m.arc == nil && filepath.Dir(msg.file) == m.cwd:
+			m.enterArchive(msg.view)
+		default:
+			msg.view.close() // the user moved on while it was listing
+		}
 	case grepBatchMsg:
 		cmd = m.handleGrepBatch(msg)
 	case grepTickMsg:
@@ -529,6 +571,24 @@ func (m model) handleKey(msg tea.KeyMsg) (model, tea.Cmd) {
 		// which foot turns into a bracketed paste) means paste files here.
 		act = actPaste
 	}
+	if m.job != nil {
+		switch {
+		case act == actEscape:
+			label := strings.ToLower(m.job.prog.label())
+			m.openConfirm("canceljob", "stop "+strings.ToLower(m.job.prog.getVerb()), []string{"Stop " + label + "?", m.job.stopNote()}, nil)
+			return m, nil
+		case act == actQuit:
+			m.openConfirm("quitjob", "quit", []string{m.job.prog.label() + " is still running.", "Stop it and quit? " + m.job.stopNote()}, nil)
+			return m, nil
+		case changesFiles[act]:
+			m.setMsg("busy: "+strings.ToLower(m.job.prog.label())+" (esc stops it)", true)
+			return m, nil
+		}
+	}
+	if m.arc != nil && !allowedInArchive[act] {
+		m.setMsg("read-only inside an archive: X extracts it", true)
+		return m, nil
+	}
 	switch act {
 	case actQuit:
 		return m, m.quit()
@@ -556,17 +616,52 @@ func (m model) handleKey(msg tea.KeyMsg) (model, tea.Cmd) {
 	case actPageUp:
 		m.move(-rows)
 	case actParent:
-		if p := filepath.Dir(m.cwd); p != m.cwd {
+		if m.arc != nil {
+			m.archiveUp()
+		} else if p := filepath.Dir(m.cwd); p != m.cwd {
 			m.chdir(p, filepath.Base(m.cwd))
 		}
 	case actOpen:
 		if !hasCur {
 			break
 		}
-		if cur.isDir {
+		switch {
+		case m.arc != nil && cur.isDir:
+			m.archiveInto(cur.name)
+		case m.arc != nil:
+			m.setMsg("read-only inside an archive: X extracts it", false)
+		case cur.isDir:
 			m.chdir(curPath, "")
-		} else {
+		case isArchiveName(cur.name):
+			m.setMsg("opening "+cur.name+"…", false)
+			return m, openArchiveCmd(curPath)
+		default:
 			return m, openDefault(curPath)
+		}
+	case actExtract:
+		var archives []string
+		if m.arc != nil {
+			archives = []string{m.arc.file}
+			m.leaveArchive()
+			m.reload(filepath.Base(archives[0]))
+		} else {
+			for _, p := range m.targetPaths() {
+				if fi, err := os.Stat(p); err == nil && !fi.IsDir() && isArchiveName(p) {
+					archives = append(archives, p)
+				}
+			}
+		}
+		if len(archives) == 0 {
+			m.setMsg("select an archive to extract (zip, tar, 7z, rar…)", true)
+			break
+		}
+		dir := m.cwd
+		return m, m.startJob("Extracting", plural(len(archives), "archive"), func(ctx context.Context, p *progress) opResult {
+			return extractJob(ctx, p, dir, archives)
+		})
+	case actCompress:
+		if paths := m.targetPaths(); len(paths) > 0 {
+			m.openInput("compress", "compress", "Archive name (.zip or .tar.gz) for "+describe(m.targets()), defaultArchiveName(m.cwd, paths), paths)
 		}
 	case actBack:
 		if m.hi > 0 {
@@ -638,7 +733,7 @@ func (m model) handleKey(msg tea.KeyMsg) (model, tea.Cmd) {
 		}
 	case actPaste:
 		dir, internal := m.cwd, m.clip
-		return m, m.run(func() opResult {
+		return m, m.startJob("Pasting", "", func(ctx context.Context, p *progress) opResult {
 			paths, cut, ok := clipRead()
 			if !ok {
 				paths, cut = internal.paths, internal.cut
@@ -646,7 +741,7 @@ func (m model) handleKey(msg tea.KeyMsg) (model, tea.Cmd) {
 			if len(paths) == 0 {
 				return opResult{desc: "Nothing to paste"}
 			}
-			res := pasteInto(dir, paths, cut)
+			res := pasteJob(ctx, p, dir, paths, cut)
 			if res.desc == "" && res.err == nil {
 				res.desc = "Nothing to paste"
 			}
@@ -853,6 +948,9 @@ func (m model) handleMouse(msg tea.MouseMsg) (model, tea.Cmd) {
 	case msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionPress && inRows:
 		switch col {
 		case 0:
+			if m.arc != nil {
+				break // the parent pane shows the archive's folders, not real paths
+			}
 			if i := row + max(0, min(m.parentCursor-rows/2, len(m.parent)-rows)); i < len(m.parent) {
 				m.chdir(filepath.Join(filepath.Dir(m.cwd), m.parent[i].name), "")
 			}
@@ -866,13 +964,7 @@ func (m model) handleMouse(msg tea.MouseMsg) (model, tea.Cmd) {
 			m.cursor = i
 			m.fixOffset()
 			if double {
-				e := m.entries[i]
-				p := filepath.Join(m.cwd, e.name)
-				if e.isDir {
-					m.chdir(p, "")
-				} else {
-					return m, openDefault(p)
-				}
+				return m.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
 			}
 		}
 	}
@@ -882,6 +974,7 @@ func (m model) handleMouse(msg tea.MouseMsg) (model, tea.Cmd) {
 // ---- misc --------------------------------------------------------------
 
 func (m model) quit() tea.Cmd {
+	m.leaveArchive()
 	m.gfx.set(nil, "")
 	if m.cwdFile != "" {
 		_ = os.WriteFile(m.cwdFile, []byte(m.cwd), 0o600)

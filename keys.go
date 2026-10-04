@@ -43,6 +43,8 @@ const (
 	actTerminal
 	actEdit
 	actCopyPath
+	actExtract
+	actCompress
 	actHidden
 	actWrap
 	actMarkdown
@@ -122,6 +124,8 @@ var bindingGroups = []bindingGroup{
 		{actProps, []string{"i"}, "i", "properties"},
 		{actPerms, []string{"P"}, "P", "permissions (chmod), here or in properties"},
 		{actCopyPath, []string{"y"}, "y", "copy path as text"},
+		{actExtract, []string{"X"}, "X", "extract archive(s) here  (enter on an archive browses it)"},
+		{actCompress, []string{"Z"}, "Z", "compress into .zip or .tar.gz"},
 	}},
 	{"Open", []binding{
 		{actEdit, []string{"e"}, "e", "edit in $EDITOR"},
@@ -164,3 +168,23 @@ var keyIndex = func() map[string]action {
 // statusHints is the always-visible shortcut strip. "? all keys" leads so it
 // survives truncation on narrow terminals.
 const statusHints = "? all keys  ↑↓←→ navigate  space select  SUPER+C/X/V copy cut paste  d trash  F2 rename  / filter  q quit"
+
+// changesFiles are the actions that modify files; they wait while a
+// background job is running.
+var changesFiles = map[action]bool{
+	actPaste: true, actTrash: true, actDelete: true, actRename: true, actNewFile: true,
+	actNewFolder: true, actUndo: true, actRestore: true, actEmptyTrash: true, actPerms: true,
+	actExtract: true, actCompress: true,
+}
+
+// allowedInArchive are the actions that make sense while browsing an
+// archive, which is read-only; everything else explains how to extract.
+var allowedInArchive = map[action]bool{
+	actNone: true, actUp: true, actDown: true, actParent: true, actOpen: true, actTop: true, actBottom: true,
+	actPageUp: true, actPageDown: true, actHalfUp: true, actHalfDown: true, actBack: true, actForward: true,
+	actHome: true, actGoto: true, actPlaces: true, actSelect: true, actSelectAll: true, actInvert: true,
+	actEscape: true, actFilter: true, actSort: true, actSortRev: true, actHidden: true, actWrap: true,
+	actMarkdown: true, actTogglePreview: true, actPreviewWider: true, actPreviewNarrower: true,
+	actScrollDown: true, actScrollUp: true, actRefresh: true, actTheme: true, actHelp: true, actQuit: true,
+	actExtract: true,
+}
