@@ -54,17 +54,19 @@ type model struct {
 	parent       []entry
 	parentCursor int
 
-	cursors  map[string]string // dir -> last selected name, restored on re-entry
-	selected map[string]bool   // names in cwd
-	clip     clipboard
-	titleDir string // folder the window title was last set for
-	jump     jumpTarget
-	job      *job       // the running background job, if any
-	arc      *arcView   // the archive being browsed, if any
-	quitting bool       // quit once the running job has stopped
-	tabs     []tabState // all tabs; the fields above describe tabs[tab]
-	tab      int
-	undo     []undoItem
+	cursors   map[string]string // dir -> last selected name, restored on re-entry
+	selected  map[string]bool   // names in cwd
+	clip      clipboard
+	titleDir  string // folder the window title was last set for
+	jump      jumpTarget
+	job       *job                 // the running background job, if any
+	arc       *arcView             // the archive being browsed, if any
+	quitting  bool                 // quit once the running job has stopped
+	tabs      []tabState           // all tabs; the fields above describe tabs[tab]
+	trashN    int                  // items in the trash, for the home folder's Trash row
+	trashMeta map[string]trashMeta // origins and dates, in the trash view
+	tab       int
+	undo      []undoItem
 
 	hist []string
 	hi   int
@@ -252,6 +254,12 @@ func (m *model) reload(focus string) {
 	}
 	m.all = ents
 	sortEntries(m.all, m.cfg.Sort, m.cfg.SortDesc)
+	if m.showsTrashLink() {
+		m.trashN = trashCount()
+	}
+	if m.inTrash() {
+		m.loadTrashMeta()
+	}
 	for name := range m.selected {
 		found := false
 		for _, e := range m.all {
@@ -296,12 +304,16 @@ func (m *model) applyView(focus string) {
 			m.entries = append(m.entries, e)
 		}
 	}
+	m.entries = append(m.entries, m.trashRows()...) // pinned below everything, whatever the sort
 	m.cursor = max(0, min(m.cursor, len(m.entries)-1))
 	for i, e := range m.entries {
-		if e.name == focus {
+		if focus != "" && e.name == focus && e.kind != kindSeparator {
 			m.cursor = i
 			break
 		}
+	}
+	if m.cursor < len(m.entries) && m.entries[m.cursor].kind == kindSeparator {
+		m.cursor-- // never rest on the separator (it always has a row above it)
 	}
 	m.fixOffset()
 	m.pvKey = ""
@@ -325,12 +337,22 @@ func (m *model) move(delta int) {
 		return
 	}
 	m.cursor = max(0, min(len(m.entries)-1, m.cursor+delta))
+	if m.entries[m.cursor].kind == kindSeparator { // not a row you can stand on
+		if delta < 0 || m.cursor == len(m.entries)-1 {
+			m.cursor = max(0, m.cursor-1)
+		} else {
+			m.cursor++
+		}
+	}
 	m.fixOffset()
 }
 
 // navigate changes directory. record adds the move to the back/forward history.
 func (m *model) navigate(dir, focus string, record bool) {
 	m.leaveArchive()
+	if dir == trashFilesDir() {
+		_ = ensureTrash() // the trash opens even before anything was deleted
+	}
 	if _, err := os.ReadDir(dir); err != nil {
 		m.setMsg("cannot open "+tildePath(dir)+": "+errText(err), true)
 		return
@@ -377,6 +399,16 @@ func (m *model) refreshPreview() tea.Cmd {
 		m.jump = jumpTarget{} // the content-search highlight lasts while its file is selected
 	}
 	if m.cfg.HidePreview {
+		return nil
+	}
+	if ok && e.kind == kindTrashLink {
+		if m.pvKey != "trash-link" {
+			m.pv = dirPreview(preview{title: "Trash"}, trashFilesDir(), m.previewOpts())
+			if m.trashN == 0 {
+				m.pv.meta, m.pv.lines = "empty", []string{"  (empty)"}
+			}
+			m.pvKey, m.pvPath, m.pvScroll = "trash-link", "", 0
+		}
 		return nil
 	}
 	if !ok {
@@ -595,6 +627,10 @@ func (m model) guard(act action) (model, tea.Cmd, bool) {
 			return m, nil, true
 		}
 	}
+	if cur, ok := m.current(); ok && cur.virtual() && onTheFile[act] && (len(m.selected) == 0 || currentOnly[act]) {
+		m.setMsg("Trash is a shortcut, not a file: enter opens it", false)
+		return m, nil, true
+	}
 	if m.arc != nil && !allowedInArchive[act] {
 		m.setMsg("read-only inside an archive: X extracts it", true)
 		return m, nil, true
@@ -654,6 +690,8 @@ func (m model) perform(act action) (model, tea.Cmd) {
 	case actParent:
 		if m.arc != nil {
 			m.archiveUp()
+		} else if m.inTrash() {
+			m.leaveTrash() // back to home, not into the trash's own internals
 		} else if p := filepath.Dir(m.cwd); p != m.cwd {
 			m.chdir(p, filepath.Base(m.cwd))
 		}
@@ -662,6 +700,8 @@ func (m model) perform(act action) (model, tea.Cmd) {
 			break
 		}
 		switch {
+		case cur.kind == kindTrashLink:
+			m.openTrash()
 		case m.arc != nil && cur.isDir:
 			m.archiveInto(cur.name)
 		case m.arc != nil:
@@ -730,10 +770,15 @@ func (m model) perform(act action) (model, tea.Cmd) {
 		}
 	case actSelectAll:
 		for _, e := range m.entries {
-			m.selected[e.name] = true
+			if !e.virtual() {
+				m.selected[e.name] = true
+			}
 		}
 	case actInvert:
 		for _, e := range m.entries {
+			if e.virtual() {
+				continue
+			}
 			if m.selected[e.name] {
 				delete(m.selected, e.name)
 			} else {
@@ -798,6 +843,9 @@ func (m model) perform(act action) (model, tea.Cmd) {
 			m.openConfirm("purge", "delete permanently", []string{"Permanently delete " + describe(m.targets()) + "?", "This cannot be undone."}, paths)
 		}
 	case actRename:
+		if m.inTrash() { // in the trash, r restores
+			return m.perform(actRestore)
+		}
 		if hasCur {
 			m.openInput("rename", "rename", "New name for "+cur.name, cur.name, []string{curPath})
 		}
@@ -815,16 +863,26 @@ func (m model) perform(act action) (model, tea.Cmd) {
 		return m, func() tea.Msg { return undoMsg{it.desc, it.fn()} }
 	case actRestore:
 		if !m.inTrash() {
-			m.setMsg("restore works inside the Trash (press b, then Trash)", false)
+			m.setMsg("restore works in the trash (alt+t opens it)", false)
 			break
 		}
 		var names []string
 		for _, e := range m.targets() {
 			names = append(names, e.name)
 		}
-		return m, m.run(func() opResult { return restoreItems(names) })
+		if len(names) > 0 {
+			return m, m.run(func() opResult { return restoreItems(names) })
+		}
 	case actEmptyTrash:
-		m.openConfirm("emptytrash", "empty trash", []string{"Permanently delete everything in the trash?", "This cannot be undone."}, nil)
+		if n := trashCount(); n == 0 {
+			m.setMsg("the trash is already empty", false)
+		} else {
+			m.openConfirm("emptytrash", "empty trash", []string{fmt.Sprintf("Permanently delete all %s in the trash?", plural(n, "item")), "This cannot be undone."}, nil)
+		}
+	case actGoTrash:
+		m.openTrash()
+	case actNewWindow:
+		return m, newWindow(m.cwd)
 	case actProps:
 		m.openProps()
 	case actPerms:
@@ -999,6 +1057,9 @@ func (m model) handleMouse(msg tea.MouseMsg) (model, tea.Cmd) {
 		case 1:
 			i := row + m.offset
 			if i >= len(m.entries) {
+				break
+			}
+			if m.entries[i].kind == kindSeparator {
 				break
 			}
 			double := i == m.lastClickRow && time.Since(m.lastClick) < doubleClick

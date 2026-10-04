@@ -53,8 +53,13 @@ func TestPaletteGroupsAndFilter(t *testing.T) {
 	}
 
 	m = typeInto(t, m, "trash")
-	if got := paletteTitles(m); len(got) == 0 || got[0] != "Move to trash" {
+	if got := paletteTitles(m); len(got) < 2 || got[0] != "Trash" || got[1] != "Move to trash" {
 		t.Fatalf("trash: %v", got)
+	}
+	for _, title := range paletteTitles(m) {
+		if title == "Empty trash" {
+			t.Fatal("Empty trash offered with an empty trash")
+		}
 	}
 	m.modal.in = newInput("")
 	m = typeInto(t, m, "sort size")

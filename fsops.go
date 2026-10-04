@@ -16,6 +16,7 @@ type entry struct {
 	size  int64
 	mod   time.Time
 	mode  fs.FileMode
+	kind  entryKind // a separator or the Trash shortcut rather than a file
 }
 
 func (e entry) hidden() bool { return strings.HasPrefix(e.name, ".") }

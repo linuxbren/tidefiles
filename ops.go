@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -203,43 +202,7 @@ func trashPath(path string) (restore func() error, err error) {
 		}
 		return nil, errors.New("cannot trash across filesystems")
 	}
-	return func() error { return restoreTrashed(name) }, nil
-}
-
-// restoreTrashed moves a trashed item back to where it came from.
-func restoreTrashed(name string) error {
-	infoPath := filepath.Join(trashDir(), "info", name+".trashinfo")
-	orig, err := trashOrigin(infoPath)
-	if err != nil {
-		return fmt.Errorf("no restore info for %s", name)
-	}
-	if err := os.MkdirAll(filepath.Dir(orig), 0o755); err != nil {
-		return err
-	}
-	dst := orig
-	if exists(dst) {
-		dst = uniqueDest(filepath.Dir(orig), filepath.Base(orig))
-	}
-	if err := movePath(filepath.Join(trashFilesDir(), name), dst); err != nil {
-		return err
-	}
-	_ = os.Remove(infoPath)
-	return nil
-}
-
-func trashOrigin(infoPath string) (string, error) {
-	f, err := os.Open(infoPath)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		if v, ok := strings.CutPrefix(sc.Text(), "Path="); ok {
-			return url.PathUnescape(v)
-		}
-	}
-	return "", errors.New("no Path in trashinfo")
+	return func() error { _, err := restoreTrashedTo(name); return err }, nil
 }
 
 func trashItems(paths []string) opResult {
@@ -275,21 +238,27 @@ func trashItems(paths []string) opResult {
 }
 
 func restoreItems(names []string) opResult {
-	n := 0
+	var where []string
 	for _, name := range names {
-		if err := restoreTrashed(name); err != nil {
-			return opResult{err: err, desc: restoredDesc(n)}
+		dst, err := restoreTrashedTo(name)
+		if err != nil {
+			return opResult{err: err, desc: restoredDesc(where)}
 		}
-		n++
+		where = append(where, dst)
 	}
-	return opResult{desc: restoredDesc(n)}
+	return opResult{desc: restoredDesc(where)}
 }
 
-func restoredDesc(n int) string {
-	if n == 0 {
+// restoredDesc says what came back and where: "Restored notes.txt to
+// ~/Documents (as notes (2).txt)" for one item, a count for several.
+func restoredDesc(where []string) string {
+	switch len(where) {
+	case 0:
 		return ""
+	case 1:
+		return "Restored to " + tildePath(where[0])
 	}
-	return "Restored " + plural(n, "item")
+	return "Restored " + plural(len(where), "item") + " to where they came from"
 }
 
 func purgeItems(paths []string) opResult {

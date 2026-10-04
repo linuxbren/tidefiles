@@ -34,7 +34,10 @@ func (m model) places() []place {
 	for _, d := range []string{"Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos"} {
 		add(d, filepath.Join(home, d), false)
 	}
-	add("Trash", trashFilesDir(), false)
+	if !seen[trashFilesDir()] { // listed even before anything was deleted; opening it creates it
+		seen[trashFilesDir()] = true
+		out = append(out, place{"Trash", trashFilesDir(), false})
+	}
 	for _, b := range m.cfg.Bookmarks {
 		add(filepath.Base(b), b, true)
 	}

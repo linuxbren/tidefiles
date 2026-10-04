@@ -97,6 +97,7 @@ func (m model) commands() []command {
 		{title: "Places and bookmarks", synonyms: "sidebar home downloads drives mounts", act: actPlaces, group: "Navigate"},
 		{title: "Bookmark this folder", synonyms: "favourite favorite pin", act: actBookmark, group: "Navigate"},
 		{title: "Home folder", synonyms: "~", act: actHome, group: "Navigate"},
+		{title: "Trash", synonyms: "bin recycle deleted wastebasket", act: actGoTrash, group: "Navigate"},
 
 		{title: "Select / unselect", synonyms: "mark toggle", act: actSelect, group: "Files", valid: cur},
 		{title: "Select all", synonyms: "mark everything", act: actSelectAll, group: "Files"},
@@ -112,13 +113,14 @@ func (m model) commands() []command {
 		{title: "New folder", synonyms: "create directory mkdir", act: actNewFolder, group: "Files"},
 		{title: "Undo", synonyms: "revert", act: actUndo, group: "Files"},
 		{title: "Restore from trash", synonyms: "undelete recover", act: actRestore, group: "Files", valid: func(mm model) bool { return mm.inTrash() && mm.hasCur() }},
-		{title: "Empty trash", synonyms: "clear bin purge", act: actEmptyTrash, group: "Files"},
+		{title: "Empty trash", synonyms: "clear bin purge", act: actEmptyTrash, group: "Files", valid: func(model) bool { return trashCount() > 0 }},
 		{title: "Properties", synonyms: "info details size owner", act: actProps, group: "Files", valid: cur},
 		{title: "Permissions (chmod)", synonyms: "mode rights executable access", act: actPerms, group: "Files", valid: cur},
 		{title: "Copy path", synonyms: "clipboard location filename text", act: actCopyPath, group: "Files", valid: cur},
 		{title: "Edit in $EDITOR", synonyms: "vim nvim text", act: actEdit, group: "Files", valid: file},
 		{title: "Open with…", synonyms: "application app program", act: actOpenWith, group: "Files", valid: file},
 		{title: "Terminal here", synonyms: "shell console command line", act: actTerminal, group: "Files"},
+		{title: "New window", synonyms: "open another tidefiles terminal", act: actNewWindow, group: "Files"},
 
 		{title: "Filter this folder", synonyms: "narrow search names", act: actFilter, group: "Search"},
 		{title: "Find files and folders", synonyms: "search names fuzzy locate recursive", act: actFind, group: "Search"},

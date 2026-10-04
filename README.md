@@ -41,6 +41,11 @@ family, built on [tideui](https://github.com/allisonhere/tideui) and Bubble Tea.
   progress bar, sizes and an ETA in the status line; `esc` stops one, removing whatever it half-made.
 - **Safe by default** — paste never overwrites (conflicts become `name (copy)`), delete goes to the
   freedesktop trash, and permanent delete asks first.
+- **A real Trash** — a `Trash · 12` row is pinned at the bottom of your home folder (and in places;
+  `alt+t` jumps there). The trash shows where each item came from and when it was deleted; `r` puts
+  it back (as `name (2)` if something is there now), `D` deletes it forever, `E` empties the trash.
+- **New window** — `ctrl+n` opens tidefiles in this folder in a new terminal window
+  (`xdg-terminal-exec`, the way Omarchy launches terminals, or `$TERMINAL`).
 
 Image previews use `imagemagick` (jpeg/svg/heic/…), `poppler` (PDF), `ffmpegthumbnailer` (video),
 `libarchive` (archives) and `ffmpeg` (audio tags) when installed. Set `TIDEFILES_IMAGES=blocks|sixel|kitty`
@@ -103,6 +108,6 @@ Settings (theme, hidden files, wrap, sort, bookmarks) are remembered in
 
 Arrow keys first; vim keys work too. Press `?` for every action: type to find one, `enter` runs it.
 `space` select · `SUPER+C`/`X`/`V` copy/cut/paste (plain `c`/`x`/`v` work too) · `d` trash · `ctrl+z` undo · `F2` rename ·
-`n`/`N` new file/folder · `/` filter · `f` find · `F` search inside files · `X` extract · `Z` compress · `ctrl+t`/`ctrl+w` tabs · `s` sort · `b` places · `i` properties · `P` permissions · `o` open with · `T` theme.
+`n`/`N` new file/folder · `/` filter · `f` find · `F` search inside files · `X` extract · `Z` compress · `ctrl+t`/`ctrl+w` tabs · `ctrl+n` new window · `alt+t` trash · `s` sort · `b` places · `i` properties · `P` permissions · `o` open with · `T` theme.
 
 `SUPER+C` needs a one-time Hyprland snippet on Omarchy — see [Install](#install).

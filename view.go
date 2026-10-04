@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,7 +19,8 @@ func (m model) View() string {
 	inner, rows := m.geometry()
 
 	parentTitle := tildePath(filepath.Dir(m.cwd))
-	hint := fmt.Sprintf("%d/%d", min(m.cursor+1, len(m.entries)), len(m.entries))
+	files := len(m.entries) - len(m.trashRows())
+	hint := fmt.Sprintf("%d/%d", min(m.cursor+1, files), files)
 	if m.cfg.Sort != "name" || m.cfg.SortDesc {
 		arrow := "↑"
 		if m.cfg.SortDesc {
@@ -95,6 +97,14 @@ func (m model) statusLeft() string {
 		return fmt.Sprintf("%d selected  %s", n, humanSize(total))
 	}
 	e, ok := m.current()
+	if ok && e.kind == kindTrashLink {
+		return "Trash · " + plural(m.trashN, "item") + " · enter opens it"
+	}
+	if ok && m.inTrash() {
+		if tm, found := m.trashMeta[e.name]; found {
+			return "from " + tildePath(tm.origin) + " · deleted " + tm.deleted.Format("2006-01-02 15:04") + " · r restores"
+		}
+	}
 	if !ok {
 		if m.filter != "" {
 			return "no matches — esc clears the filter"
@@ -126,6 +136,15 @@ func (m model) renderList(ents []entry, cursor, offset, width, rows int, main bo
 	lines := make([]string, 0, end-offset)
 	for i := offset; i < end; i++ {
 		e := ents[i]
+		switch e.kind {
+		case kindSeparator:
+			lines = append(lines, m.renderer.Styles.DetailMeta.Render(" "+strings.Repeat("─", max(1, width-2))))
+			continue
+		case kindTrashLink:
+			text := trashIcon + " Trash · " + strconv.Itoa(m.trashN)
+			lines = append(lines, m.renderer.RenderRow(tideui.Row{Prefix: "  ", Text: text, Selected: i == cursor, Muted: true}, width))
+			continue
+		}
 		name := e.name
 		if e.isDir {
 			name += "/"
@@ -135,7 +154,11 @@ func (m model) renderList(ents []entry, cursor, offset, width, rows int, main bo
 			prefix = "✓"
 		}
 		row := tideui.Row{Prefix: prefix + " ", Text: sanitize(name), Selected: i == cursor, Muted: e.hidden() || cutSet[e.name]}
-		if main && !e.isDir && width >= 28 {
+		switch {
+		case main && m.inTrash() && width >= 24:
+			// Where it came from and when it was deleted; narrow panes keep the date.
+			row.Suffix = m.trashSuffix(e.name, max(16, width-ansi.StringWidth(name)-6)) + " "
+		case main && !e.isDir && width >= 28:
 			row.Suffix = humanSize(e.size) + " "
 		}
 		lines = append(lines, m.renderer.RenderRow(row, width))

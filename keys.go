@@ -17,6 +17,8 @@ const (
 	actBack
 	actForward
 	actHome
+	actGoTrash
+	actNewWindow
 	actGoto
 	actFind
 	actGrep
@@ -112,6 +114,7 @@ var bindingGroups = []bindingGroup{
 		{actPlaces, []string{"b"}, "b", "places and bookmarks"},
 		{actBookmark, []string{"B"}, "B", "bookmark this folder"},
 		{actHome, []string{"~"}, "~", "home folder"},
+		{actGoTrash, []string{"alt+t"}, "alt+t", "trash"},
 	}},
 	{"Select", []binding{
 		{actSelect, []string{" "}, "space", "select / unselect, move down"},
@@ -132,7 +135,7 @@ var bindingGroups = []bindingGroup{
 		{actNewFile, []string{"n"}, "n", "new file"},
 		{actNewFolder, []string{"N"}, "N", "new folder"},
 		{actUndo, []string{"ctrl+z", "u"}, "ctrl+z  u", "undo last change"},
-		{actRestore, []string{"R"}, "R", "restore from trash"},
+		{actRestore, []string{"R"}, "r  R", "restore from trash (in the trash, r restores)"},
 		{actEmptyTrash, []string{"E"}, "E", "empty trash"},
 		{actProps, []string{"i"}, "i", "properties"},
 		{actPerms, []string{"P"}, "P", "permissions (chmod), here or in properties"},
@@ -159,6 +162,7 @@ var bindingGroups = []bindingGroup{
 		{actEdit, []string{"e"}, "e", "edit in $EDITOR"},
 		{actOpenWith, []string{"o"}, "o", "open with…"},
 		{actTerminal, []string{"t"}, "t", "terminal here"},
+		{actNewWindow, []string{"ctrl+n"}, "ctrl+n", "new window (tidefiles here, in a new terminal)"},
 	}},
 	{"View", []binding{
 		{actHidden, []string{"."}, ".", "show / hide hidden files"},
@@ -214,7 +218,18 @@ var allowedInArchive = map[action]bool{
 	actEscape: true, actFilter: true, actSort: true, actSortRev: true, actHidden: true, actWrap: true,
 	actMarkdown: true, actTogglePreview: true, actPreviewWider: true, actPreviewNarrower: true,
 	actScrollDown: true, actScrollUp: true, actRefresh: true, actTheme: true, actHelp: true, actQuit: true,
-	actExtract: true, actNewTab: true, actCloseTab: true, actNextTab: true, actPrevTab: true,
+	actExtract: true, actNewTab: true, actGoTrash: true, actNewWindow: true, actCloseTab: true, actNextTab: true, actPrevTab: true,
 	actTab1: true, actTab2: true, actTab3: true, actTab4: true, actTab5: true, actTab6: true,
 	actTab7: true, actTab8: true, actTab9: true,
 }
+
+// onTheFile are actions on the selection or the file under the cursor; on
+// the home folder's Trash row (not a file) they explain instead.
+var onTheFile = map[action]bool{
+	actSelect: true, actCopy: true, actCut: true, actTrash: true, actDelete: true, actRename: true,
+	actProps: true, actPerms: true, actCopyPath: true, actEdit: true, actOpenWith: true,
+	actCompress: true, actExtract: true,
+}
+
+// currentOnly of those always use the cursor's entry, even with a selection.
+var currentOnly = map[action]bool{actSelect: true, actRename: true, actEdit: true, actOpenWith: true}
