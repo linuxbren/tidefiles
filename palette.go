@@ -47,7 +47,7 @@ func keysFor(act action) string {
 				continue
 			}
 			if b.display != "" && !strings.Contains(b.display, " / ") && !strings.Contains(b.display, "…") {
-				return b.display
+				return keyLabel(b.display)
 			}
 			var ks []string
 			for _, k := range b.keys[:min(2, len(b.keys))] {

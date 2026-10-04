@@ -57,7 +57,7 @@ func (m model) View() string {
 			{Title: title, Hint: hint, Focused: true, Content: m.renderList(m.entries, m.cursor, m.offset, inner[1], rows, true)},
 			{Title: pvTitle, Hint: m.pv.meta, Content: strings.Join(m.previewLines(inner[2]), "\n"), ScrollOffset: m.pvScroll},
 		},
-		Status: &tideui.StatusBar{Left: m.statusLeft(), Right: statusHints},
+		Status: &tideui.StatusBar{Left: m.statusLeft(), Right: statusHints()},
 	}
 	if m.cfg.HidePreview {
 		layout.Mode, layout.SidebarRatio = tideui.SidebarOnly, 0.28

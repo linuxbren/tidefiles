@@ -1,5 +1,7 @@
 package main
 
+import "strings"
+
 type action int
 
 const (
@@ -199,8 +201,28 @@ var keyIndex = func() map[string]action {
 }()
 
 // statusHints is the always-visible shortcut strip. "? all keys" leads so it
-// survives truncation on narrow terminals.
-const statusHints = "? all keys  ↑↓←→ navigate  space select  SUPER+C/X/V copy cut paste  d trash  F2 rename  / filter  q quit"
+// survives truncation on narrow terminals. SUPER+C/X/V are Omarchy's system
+// shortcuts, so elsewhere the strip shows the plain keys.
+func statusHints() string {
+	if onOmarchy {
+		return "? all keys  ↑↓←→ navigate  space select  SUPER+C/X/V copy cut paste  d trash  F2 rename  / filter  q quit"
+	}
+	return "? all keys  ↑↓←→ navigate  space select  c x v copy cut paste  d trash  F2 rename  / filter  q quit"
+}
+
+// onOmarchy is set at start: whether an Omarchy desktop (its theme) is here.
+var onOmarchy bool
+
+// keyLabel drops the Omarchy-only "SUPER+X" part of a key label off Omarchy.
+func keyLabel(display string) string {
+	if onOmarchy || !strings.HasPrefix(display, "SUPER+") {
+		return display
+	}
+	if _, rest, ok := strings.Cut(display, "  "); ok {
+		return rest
+	}
+	return display
+}
 
 // changesFiles are the actions that modify files; they wait while a
 // background job is running.

@@ -137,7 +137,11 @@ func newModel(dir string, cfg config, cwdFile string, gfx *gfxOut) model {
 		hist:      []string{dir},
 	}
 	m.proto = imageProto(cfg.ImageMode, m.autoProto)
+	_, onOmarchy = omarchy.Current()
 	m.applyTheme()
+	if m.themeMode == themeOmarchy && !onOmarchy {
+		m.setMsg("Omarchy theme not found, so using "+m.theme.Name+" · T picks a theme", false)
+	}
 	m.reload("")
 	m.tabs = make([]tabState, 1)
 	return m
@@ -807,7 +811,10 @@ func (m model) perform(act action) (model, tea.Cmd) {
 		done := verb + " " + plural(len(paths), "item") + " — press v to paste"
 		m.setMsg(doing, false)
 		return m, func() tea.Msg {
-			if err := clipWrite(cut, paths); err != nil {
+			if err := clipWrite(cut, paths); err == errNoClipboard {
+				// Not an error: there's just no system clipboard (console, ssh…).
+				return statusMsg{done + " (inside tidefiles; no system clipboard here)", false}
+			} else if err != nil {
 				return statusMsg{done + " here only (system clipboard: " + err.Error() + ")", true}
 			}
 			return statusMsg{done, false}

@@ -163,6 +163,19 @@ func TestPaletteImageMode(t *testing.T) {
 }
 
 func TestKeysFor(t *testing.T) {
+	was := onOmarchy
+	defer func() { onOmarchy = was }()
+	onOmarchy = false
+	if got := keysFor(actCopy); got != "c" {
+		t.Errorf("copy off Omarchy: %q", got)
+	}
+	if strings.Contains(statusHints(), "SUPER") {
+		t.Error("hint strip mentions SUPER off Omarchy")
+	}
+	onOmarchy = true
+	if !strings.Contains(statusHints(), "SUPER+C/X/V") {
+		t.Error("hint strip lost SUPER on Omarchy")
+	}
 	for act, want := range map[action]string{actUp: "↑  k", actDown: "↓  j", actCopy: "SUPER+C  c", actTab2: "2", actNextTab: "tab", actPrevTab: "shift+tab", actPageDown: "pgdn  ctrl+f"} {
 		if got := keysFor(act); got != want {
 			t.Errorf("action %d: %q, want %q", act, got, want)

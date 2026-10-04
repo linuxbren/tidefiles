@@ -72,6 +72,12 @@ func fileOffers(cut bool, paths []string) []clipOffer {
 // setClipboard takes the selection with all offers, or falls back to wl-copy
 // with one of them.
 func setClipboard(offers []clipOffer) error {
+	switch clipBackend(os.Getenv, exec.LookPath) {
+	case "xclip", "xsel":
+		return x11Copy(offers)
+	case "":
+		return errNoClipboard
+	}
 	err := spawnClipOwner(offers)
 	if err == nil {
 		return nil
@@ -290,7 +296,8 @@ func serveClipboard() int {
 // readClipboardFiles returns the files on the system clipboard, preferring
 // formats that carry cut vs copy.
 func readClipboardFiles() (paths []string, cut bool, ok bool) {
-	types, err := wlPaste("--list-types")
+	backend := clipBackend(os.Getenv, exec.LookPath)
+	types, err := pasteTypes(backend)
 	if err != nil {
 		return nil, false, false
 	}
@@ -298,11 +305,14 @@ func readClipboardFiles() (paths []string, cut bool, ok bool) {
 	for _, t := range strings.Split(string(types), "\n") {
 		has[strings.TrimSpace(t)] = true
 	}
+	if has["UTF8_STRING"] || has["STRING"] { // X11's names for text
+		has["text/plain"] = true
+	}
 	for _, t := range []string{clipType, uriListType, "text/plain;charset=utf-8", "text/plain"} {
 		if !has[t] {
 			continue
 		}
-		out, err := wlPaste("--no-newline", "--type", t)
+		out, err := pasteType(backend, t)
 		if err != nil {
 			continue
 		}
@@ -321,10 +331,78 @@ func readClipboardFiles() (paths []string, cut bool, ok bool) {
 	return nil, false, false
 }
 
-func wlPaste(args ...string) ([]byte, error) {
+func wlPaste(args ...string) ([]byte, error) { return clipTool("wl-paste", args...) }
+
+func clipTool(name string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	return exec.CommandContext(ctx, "wl-paste", args...).Output()
+	return exec.CommandContext(ctx, name, args...).Output()
+}
+
+// ---- X11 and no clipboard -------------------------------------------------
+
+var errNoClipboard = errors.New("no system clipboard here (needs Wayland, or X11 with xclip or xsel)")
+
+// clipBackend picks the system clipboard: "wayland", "xclip" or "xsel" (X11),
+// or "" when there's none (a console, ssh without X forwarding…).
+func clipBackend(getenv func(string) string, look func(string) (string, error)) string {
+	if getenv("WAYLAND_DISPLAY") != "" {
+		return "wayland"
+	}
+	if getenv("DISPLAY") != "" {
+		for _, tool := range []string{"xclip", "xsel"} {
+			if _, err := look(tool); err == nil {
+				return tool
+			}
+		}
+	}
+	return ""
+}
+
+// x11Copy puts the copy on the X11 clipboard. xclip and xsel serve one
+// format, so it's the text form (the paths, for a file copy): what
+// terminals and editors paste.
+func x11Copy(offers []clipOffer) error {
+	text := offers[0].Data
+	for _, o := range offers {
+		if o.MimeType == "text/plain;charset=utf-8" || o.MimeType == "text/plain" {
+			text = o.Data
+			break
+		}
+	}
+	if _, err := exec.LookPath("xclip"); err == nil {
+		return runWithStdin(text, "xclip", "-selection", "clipboard", "-in")
+	}
+	return runWithStdin(text, "xsel", "--clipboard", "--input")
+}
+
+// pasteTypes lists the clipboard's formats, newline-separated.
+func pasteTypes(backend string) ([]byte, error) {
+	switch backend {
+	case "wayland":
+		return wlPaste("--list-types")
+	case "xclip":
+		return clipTool("xclip", "-selection", "clipboard", "-out", "-target", "TARGETS")
+	case "xsel":
+		return []byte("text/plain"), nil // xsel only reads text
+	}
+	return nil, errNoClipboard
+}
+
+// pasteType reads one format from the clipboard.
+func pasteType(backend, mime string) ([]byte, error) {
+	switch backend {
+	case "wayland":
+		return wlPaste("--no-newline", "--type", mime)
+	case "xclip":
+		if strings.HasPrefix(mime, "text/plain") {
+			mime = "UTF8_STRING"
+		}
+		return clipTool("xclip", "-selection", "clipboard", "-out", "-target", mime)
+	case "xsel":
+		return clipTool("xsel", "--clipboard", "--output")
+	}
+	return nil, errNoClipboard
 }
 
 func parseClip(s string) (paths []string, cut bool, ok bool) {
