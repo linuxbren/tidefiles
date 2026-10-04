@@ -1,0 +1,29 @@
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # bsdtar and ripgrep let the archive and content-search tests run
+      # against the real tools (they skip without them).
+      - name: Test tools
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools ripgrep
+      - name: gofmt
+        run: test -z "$(gofmt -l . | tee /dev/stderr)"
+      - name: go vet
+        run: go vet ./...
+      - name: go test -race
+        run: go test -race -count=1 ./...
+      - name: Build (amd64, arm64)
+        run: |
+          CGO_ENABLED=0 GOARCH=amd64 go build -trimpath -o /dev/null .
+          CGO_ENABLED=0 GOARCH=arm64 go build -trimpath -o /dev/null .
