@@ -46,20 +46,42 @@ to override terminal detection.
 
 ## Install
 
-tidefiles runs on **Linux only** (it's built and tested on Omarchy: Hyprland + foot). It needs
-Go 1.27 or newer to build:
+tidefiles runs on **Linux only** (x86_64 and arm64; built and tested on Omarchy: Hyprland + foot).
+The system clipboard needs a Wayland session and `wl-clipboard`. Pick one of:
+
+**Download a release binary** (no Go needed). From v0.7.0 on, every [release](https://github.com/linuxbren/tidefiles/releases)
+has static `tidefiles_<version>_linux_<amd64|arm64>.tar.gz` archives and a `checksums.txt`:
+
+```sh
+ver=0.7.0 arch=amd64   # or arch=arm64
+base=https://github.com/linuxbren/tidefiles/releases/download/v$ver
+curl -LO $base/tidefiles_${ver}_linux_$arch.tar.gz -LO $base/checksums.txt
+sha256sum --ignore-missing -c checksums.txt
+tar xzf tidefiles_${ver}_linux_$arch.tar.gz tidefiles
+install -Dm755 tidefiles ~/.local/bin/tidefiles
+```
+
+**Arch Linux: build a package** with the PKGBUILD in [`contrib/arch`](contrib/arch) (it builds the release it
+names from source, runs the tests, and pulls in the dependencies):
+
+```sh
+git clone https://github.com/linuxbren/tidefiles && cd tidefiles/contrib/arch
+makepkg -si
+```
+
+**With Go** (1.27 or newer):
 
 ```sh
 go install github.com/linuxbren/tidefiles@latest
-tidefiles --version
 ```
 
 The binary lands in `$(go env GOPATH)/bin` (usually `~/go/bin`); make sure that's on your `PATH`.
-The system clipboard needs a Wayland session and `wl-clipboard`.
+Check any of them with `tidefiles --version`.
 
 **Optional — `SUPER+C` on Omarchy.** `SUPER+V` and `SUPER+X` work out of the box, but foot keeps
 the key Omarchy's `SUPER+C` sends to terminals for itself. To make `SUPER+C` copy in tidefiles,
-append [`contrib/omarchy-super-c.lua`](contrib/omarchy-super-c.lua) to `~/.config/hypr/bindings.lua`
+append [`contrib/omarchy-super-c.lua`](contrib/omarchy-super-c.lua) (also in the release archives, and at
+`/usr/share/tidefiles/omarchy-super-c.lua` with the Arch package) to `~/.config/hypr/bindings.lua`
 (Hyprland reloads on save; check with `hyprctl configerrors`). It only affects windows titled
 `tidefiles — …`; every other window keeps Omarchy's default. Without it, plain `c` copies.
 

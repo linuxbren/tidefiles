@@ -1,0 +1,44 @@
+# Release builds: pushing a v* tag runs .github/workflows/release.yml, which
+# runs GoReleaser to build static Linux binaries and attach them, with
+# checksums, to the GitHub release. See "Releasing" in README.md.
+version: 2
+project_name: tidefiles
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: tidefiles
+    binary: tidefiles
+    env:
+      - CGO_ENABLED=0
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X main.version=v{{ .Version }}
+
+archives:
+  - id: tidefiles
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - contrib/omarchy-super-c.lua
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  disable: true # release notes are written by hand (gh release edit)
+
+release:
+  github:
+    owner: linuxbren
+    name: tidefiles
+  name_template: "v{{ .Version }} (preview)"
+  prerelease: "true" # pre-1.0 releases are previews; switch to auto at 1.0
+  mode: keep-existing # never overwrite notes already on the release
