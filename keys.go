@@ -82,7 +82,7 @@ const (
 
 // binding ties keys to an action and drives both dispatch and the help
 // overlay, so what is documented is what is bound. Arrow keys come first, as
-// in TideMail; vim-style letters remain as alternates.
+// in most TUIs; vim-style letters remain as alternates.
 type binding struct {
 	act     action
 	keys    []string

@@ -1,4 +1,4 @@
-// tidefiles is a keyboard-first terminal file manager in the TideMail family:
+// tidefiles is a keyboard-first terminal file manager:
 // three panes, a word-wrapped preview, an always-visible shortcut strip, and a
 // theme that follows the active Omarchy desktop theme.
 package main

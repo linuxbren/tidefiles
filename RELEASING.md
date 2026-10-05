@@ -2,6 +2,10 @@
 
 1. Make sure `main` is green in CI (`.github/workflows/ci.yml`: gofmt, `go vet`, `go test -race`,
    amd64 + arm64 builds).
+   Check for tideui fixes first (Dependabot also opens a pull request monthly):
+   `go list -m -u github.com/allisonhere/tideui` shows `[vX.Y.Z]` when there's a newer version;
+   update with `go get github.com/allisonhere/tideui@latest && go mod tidy`, run the tests, and
+   update `vendorHash` in `flake.nix` (below).
    Before tagging, set `version` in `flake.nix` to the new version and commit it. Whenever
    `go.mod`/`go.sum` changed, also update `vendorHash` there: set it to `pkgs.lib.fakeHash`, run
    `nix build`, and copy the hash it reports (the CI `nix` job fails until it matches).

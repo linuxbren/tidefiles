@@ -1,7 +1,7 @@
 # tidefiles
 
-A keyboard-first terminal file manager in the [TideMail](https://github.com/allisonhere/tidemail)
-family, built on [tideui](https://github.com/allisonhere/tideui) and Bubble Tea.
+A keyboard-first terminal file manager for Linux, built with Bubble Tea. Its UI components came
+originally from [tideui](https://github.com/allisonhere/tideui) by [@allisonhere](https://github.com/allisonhere).
 
 ![tidefiles on Omarchy (Catppuccin theme): parent folder, current folder and a syntax-highlighted preview of main.go](docs/screenshots/browse.png)
 
