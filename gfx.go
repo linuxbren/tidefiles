@@ -47,11 +47,22 @@ func detectProto() gfxProto {
 	return probeTerminal()
 }
 
+// probeTimeout bounds the wait for the terminal's answer to probeTerminal.
+// The wait ends as soon as the answer arrives (normally a few milliseconds),
+// but a terminal that is still starting up can take much longer: foot opened
+// through Omarchy's launcher (uwsm-app, as a floating window) has answered
+// after the old 250 ms limit, which silently dropped tidefiles to blurry
+// half-block images for the whole session, and its late answer then arrived
+// as keystrokes.
+const probeTimeout = 1500 * time.Millisecond
+
 // probeTerminal asks the terminal what it can draw. It sends a kitty-graphics
 // query followed by a Primary Device Attributes request; every terminal
 // answers the latter, so its reply marks the end of the wait.
-func probeTerminal() gfxProto {
-	fd := int(os.Stdin.Fd())
+func probeTerminal() gfxProto { return probeTerminalOn(os.Stdin, os.Stdout, probeTimeout) }
+
+func probeTerminalOn(in, out *os.File, timeout time.Duration) gfxProto {
+	fd := int(in.Fd())
 	old, err := unix.IoctlGetTermios(fd, unix.TCGETS)
 	if err != nil {
 		return protoBlocks // not a terminal
@@ -64,10 +75,10 @@ func probeTerminal() gfxProto {
 	}
 	defer unix.IoctlSetTermios(fd, unix.TCSETS, old)
 
-	os.Stdout.WriteString("\x1b_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\\x1b[c")
+	out.WriteString("\x1b_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\\x1b[c")
 	var reply []byte
 	buf := make([]byte, 256)
-	deadline := time.Now().Add(250 * time.Millisecond)
+	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) && !bytes.Contains(reply, []byte("c")) {
 		fds := []unix.PollFd{{Fd: int32(fd), Events: unix.POLLIN}}
 		if n, _ := unix.Poll(fds, int(time.Until(deadline).Milliseconds())); n <= 0 {
