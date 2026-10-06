@@ -59,9 +59,11 @@ type model struct {
 	clip      clipboard
 	titleDir  string // folder the window title was last set for
 	jump      jumpTarget
-	job       *job                 // the running background job, if any
-	arc       *arcView             // the archive being browsed, if any
-	quitting  bool                 // quit once the running job has stopped
+	job       *job     // the running background job, if any
+	arc       *arcView // the archive being browsed, if any
+	quitting  bool     // quit once the running job has stopped
+	upd       updateState
+	restart   bool                 // quit, then restart into an installed update
 	tabs      []tabState           // all tabs; the fields above describe tabs[tab]
 	trashN    int                  // items in the trash, for the home folder's Trash row
 	trashMeta map[string]trashMeta // origins and dates, in the trash view
@@ -138,6 +140,7 @@ func newModel(dir string, cfg config, cwdFile string, gfx *gfxOut) model {
 	}
 	m.proto = imageProto(cfg.ImageMode, m.autoProto)
 	_, onOmarchy = omarchy.Current()
+	m.upd = newUpdateState()
 	m.applyTheme()
 	if m.themeMode == themeOmarchy && !onOmarchy {
 		m.setMsg("Omarchy theme not found, so using "+m.theme.Name+" · T picks a theme", false)
@@ -160,7 +163,11 @@ func (m *model) setRenderer(t tideui.Theme) {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(writeTerm(setTerminalBg(m.theme)), tick())
+	cmds := []tea.Cmd{writeTerm(setTerminalBg(m.theme)), tick()}
+	if m.updateDue(time.Now()) {
+		cmds = append(cmds, checkUpdate(false))
+	}
+	return tea.Batch(cmds...)
 }
 
 // windowTitle names the terminal window. Omarchy's Super+C override in
@@ -519,6 +526,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.job != nil && m.job.id == msg.id {
 			cmd = jobTick(msg.id) // keeps the progress bar moving
 		}
+	case updateCheckedMsg:
+		return m.onUpdateChecked(msg)
+	case updateInstalledMsg:
+		return m.onUpdateInstalled(msg)
 	case jobDoneMsg:
 		if m.job != nil && m.job.id == msg.id {
 			m.job = nil
@@ -653,6 +664,8 @@ func (m model) perform(act action) (model, tea.Cmd) {
 		return m, m.quit()
 	case actHelp:
 		m.openPalette()
+	case actUpdate:
+		return m.updateAction()
 	case actNewTab:
 		m.newTab()
 		m.setMsg("new tab ("+plural(len(m.tabs), "tab")+" open) · ctrl+w closes it", false)

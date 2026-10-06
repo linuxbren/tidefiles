@@ -25,6 +25,10 @@ One `main` package, one file per concern:
   extract, compress); `archive.go` / `compress.go`; `trash.go` (freedesktop trash, pinned Trash row,
   new window); `tabs.go`; `places.go`; `clipboard.go` (Wayland ext-data-control owner, X11 xclip/xsel,
   wl-copy fallback); `config.go` (`~/.config/tidefiles/config.json`); `internal/omarchy` theme reading.
+- `update.go` daily release check + self-update (`U`; Settings → Updates). Only a release binary in a
+  user-writable folder replaces itself (checksum-verified, `--version` sanity run, atomic rename,
+  then a restart prompt that re-execs with `TIDEFILES_RESTARTED`); packages / Nix / `go install`
+  get a hint; dev builds never check. Tests use `TIDEFILES_UPDATE_URL` (TestMain points it nowhere).
 
 ## Build and test
 

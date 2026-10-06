@@ -101,6 +101,14 @@ go install github.com/linuxbren/tidefiles@latest
 The binary lands in `$(go env GOPATH)/bin` (usually `~/go/bin`); make sure that's on your `PATH`.
 Check any of them with `tidefiles --version`.
 
+**Updates.** Once a day tidefiles checks GitHub for a new release, in the background. A release binary
+installed as above (in a folder you can write, like `~/.local/bin`) updates itself: it downloads the
+new release, checks it against the release's `checksums.txt`, makes sure it runs, swaps it in, and asks
+whether to restart into it (your tabs come back); say no and it starts next time. Packages, the Arch
+package, Nix and `go install` are never replaced behind their backs: tidefiles tells you a new version
+is out and the command that updates it. `U` checks, installs or restarts by hand. Settings (`S`) →
+Updates: install automatically (the default), notify only, or off.
+
 **Optional — `SUPER+C` on Omarchy.** `SUPER+V` and `SUPER+X` work out of the box, but foot keeps
 the key Omarchy's `SUPER+C` sends to terminals for itself. To make `SUPER+C` copy in tidefiles,
 append [`contrib/omarchy-super-c.lua`](contrib/omarchy-super-c.lua) (also in the release archives, and at

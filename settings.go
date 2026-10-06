@@ -131,6 +131,21 @@ func settingsList() []setting {
 				m.setMsg("", false)
 				return nil
 			}},
+		{label: "Updates", choices: []string{"install automatically", "notify only", "off"},
+			current: func(m model) int {
+				switch m.cfg.Updates {
+				case updatesNotify:
+					return 1
+				case updatesOff:
+					return 2
+				}
+				return 0
+			},
+			apply: func(m *model, i int) tea.Cmd {
+				m.cfg.Updates = []string{updatesAuto, updatesNotify, updatesOff}[i]
+				m.cfg.save()
+				return nil
+			}},
 	}
 }
 

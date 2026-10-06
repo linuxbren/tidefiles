@@ -430,6 +430,13 @@ func (m model) runConfirmed(md *modal) (model, tea.Cmd) {
 		return m, m.run(func() opResult { return purgeItems(paths) })
 	case "emptytrash":
 		return m, m.run(emptyTrash)
+	case "restart":
+		if m.job != nil {
+			m.setMsg("a job is running · press U to restart once it's done", false)
+			return m, nil
+		}
+		m.restart = true
+		return m, m.quit()
 	case "canceljob", "quitjob":
 		if m.job != nil {
 			m.job.cancel()

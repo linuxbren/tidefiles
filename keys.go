@@ -77,6 +77,7 @@ const (
 	actScrollDown
 	actScrollUp
 	actHelp
+	actUpdate
 	actQuit
 )
 
@@ -184,6 +185,7 @@ var bindingGroups = []bindingGroup{
 	}},
 	{"App", []binding{
 		{actHelp, []string{"?"}, "?", "help: every action (type to search, enter runs)"},
+		{actUpdate, []string{"U"}, "U", "update tidefiles: check, install, or restart into a new version"},
 		{actQuit, []string{"q", "ctrl+c"}, "q", "quit"},
 	}},
 }
@@ -240,7 +242,7 @@ var allowedInArchive = map[action]bool{
 	actHome: true, actGoto: true, actPlaces: true, actSelect: true, actSelectAll: true, actInvert: true,
 	actEscape: true, actFilter: true, actSort: true, actSortRev: true, actHidden: true, actWrap: true,
 	actMarkdown: true, actTogglePreview: true, actPreviewWider: true, actPreviewNarrower: true,
-	actScrollDown: true, actScrollUp: true, actRefresh: true, actTheme: true, actHelp: true, actQuit: true, actSettings: true,
+	actScrollDown: true, actScrollUp: true, actRefresh: true, actTheme: true, actHelp: true, actUpdate: true, actQuit: true, actSettings: true,
 	actExtract: true, actNewTab: true, actGoTrash: true, actNewWindow: true, actCloseTab: true, actNextTab: true, actPrevTab: true,
 	actTab1: true, actTab2: true, actTab3: true, actTab4: true, actTab5: true, actTab6: true,
 	actTab7: true, actTab8: true, actTab9: true,

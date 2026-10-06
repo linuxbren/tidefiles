@@ -18,7 +18,9 @@
    creates the GitHub release "vX.Y.Z" — always a normal release, never a pre-release, so it shows
    as Latest and `/releases/latest/download/…` links work — and attaches, for linux amd64 and
    arm64: `tidefiles_linux_<arch>.tar.gz`, `tidefiles_<arch>.deb` / `.rpm` / `.apk`, and
-   `checksums.txt`. tidefiles is Linux only.
+   `checksums.txt`. tidefiles is Linux only. Release binaries update themselves from these
+   (`update.go`): keep the archive name `tidefiles_linux_<arch>.tar.gz`, the `tidefiles` binary at
+   its root, `checksums.txt`, and `vX.Y.Z` tags, or installed copies stop updating.
 3. Add the release notes once the workflow has finished:
    ```sh
    gh release edit vX.Y.Z --notes-file notes.md

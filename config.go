@@ -25,6 +25,9 @@ type config struct {
 
 	ImageMode string   `json:"image_mode,omitempty"` // "", kitty, sixel or blocks ("" detects)
 	Recent    []string `json:"recent,omitempty"`     // help-palette actions, most recent first
+
+	Updates       string `json:"updates,omitempty"`        // "" install automatically, "notify", "off"
+	UpdateChecked int64  `json:"update_checked,omitempty"` // unix time of the last check for a new release
 }
 
 func defaultConfig() config {

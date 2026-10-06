@@ -16,6 +16,8 @@ func main() {
 	if os.Getenv(clipServeEnv) != "" { // re-exec'd to own the clipboard
 		os.Exit(serveClipboard())
 	}
+	restarted := os.Getenv(restartEnv) != "" // restarted into an update
+	os.Unsetenv(restartEnv)
 	themeFlag := flag.String("theme", "", `theme: "omarchy" (follow the desktop) or a tideui palette name (default: saved choice)`)
 	cwdFile := flag.String("cwd-file", "", "write the final directory to this file on exit (for shell cd-on-quit)")
 	showVersion := flag.Bool("version", false, "print the version and exit")
@@ -49,13 +51,19 @@ func main() {
 	// window isn't mistaken for tidefiles.
 	fmt.Fprint(os.Stdout, "\x1b[22;0t")
 	m := newModel(abs, cfg, *cwdFile, out)
-	if len(cfg.Tabs) > 0 && restoreTabsAtStart(cfg, flag.NArg() > 0) {
+	if len(cfg.Tabs) > 0 && (restarted || restoreTabsAtStart(cfg, flag.NArg() > 0)) {
 		m.restoreTabs(cfg.Tabs) // last session's tabs, with the starting folder active
 	}
-	_, err = tea.NewProgram(m, tea.WithOutput(out), tea.WithAltScreen(), tea.WithMouseCellMotion()).Run()
+	if restarted {
+		m.setMsg("updated to "+versionString(), false)
+	}
+	final, err := tea.NewProgram(m, tea.WithOutput(out), tea.WithAltScreen(), tea.WithMouseCellMotion()).Run()
 	fmt.Fprint(os.Stdout, "\x1b[23;0t")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "tidefiles:", err)
 		os.Exit(1)
+	}
+	if fm, ok := final.(model); ok && fm.restart {
+		restartInto(fm.cwd, *themeFlag, *cwdFile)
 	}
 }
