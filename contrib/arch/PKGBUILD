@@ -3,7 +3,7 @@
 # Build from source with:  makepkg -si   (in this folder)
 # To update: bump pkgver, run `updpkgsums`, then `makepkg --printsrcinfo > .SRCINFO`.
 pkgname=tidefiles
-pkgver=0.6.0
+pkgver=0.7.0
 pkgrel=1
 pkgdesc="Keyboard-first terminal file manager that follows your Omarchy theme"
 arch=('x86_64' 'aarch64')
@@ -22,7 +22,7 @@ optdepends=(
   'xdg-terminal-exec: open a terminal here'
 )
 source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
-sha256sums=('c053a420c930bea098deeb76dbaf62515fea2b2b16e403e772ce1c3eccbaf207')
+sha256sums=('cfd72ddc0c5fdbb734bb58c37bc9003a890e5490f5ce4b3de8847ec7049f9100')
 
 prepare() {
   cd "$pkgname-$pkgver"

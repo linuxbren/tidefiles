@@ -31,9 +31,14 @@
    cd contrib/arch
    sed -i 's/^pkgver=.*/pkgver=X.Y.Z/; s/^pkgrel=.*/pkgrel=1/' PKGBUILD
    updpkgsums && makepkg --printsrcinfo > .SRCINFO
-   makepkg -f   # builds, runs the tests, packages
+   makepkg -f   # builds, runs the tests, packages (-d if Go comes from mise, not pacman)
    ```
    and commit it.
+5. Check what users get:
+   - the tarball matches `checksums.txt` and `tidefiles --version` says vX.Y.Z;
+   - `go install …@latest` gives vX.Y.Z. Use a scratch `GOPATH` and `GOBIN`, since a global
+     `GOBIN` (mise) would otherwise receive the binary.
+6. Retake the README screenshots if the UI changed (see the vault note for how).
 
 Try a release build locally without publishing: `goreleaser release --snapshot --clean` (output in
 `dist/`, which is git-ignored).

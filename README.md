@@ -16,6 +16,24 @@ originally from [tideui](https://github.com/allisonhere/tideui) by [@allisonhere
     <td align="center">Browse inside archives · Gruvbox</td>
     <td align="center">Theme picker · Kanagawa</td>
   </tr>
+  <tr>
+    <td><img src="docs/screenshots/tabs.png" alt="Three tabs (aurora, Pictures, Documents) with a sharp image preview (Tokyo Night theme)"></td>
+    <td><img src="docs/screenshots/palette.png" alt="The ? palette filtered to tab-related actions with their keys (Rosé Pine theme)"></td>
+    <td><img src="docs/screenshots/trash.png" alt="The trash view: each item with where it came from and when it was deleted (Nord theme)"></td>
+  </tr>
+  <tr>
+    <td align="center">Tabs · Tokyo Night</td>
+    <td align="center"><code>?</code> palette: every action, searchable · Rosé Pine</td>
+    <td align="center">A real Trash with restore · Nord</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/settings.png" alt="The settings page: tabs at startup, theme, sorting, previews and updates (Osaka Jade theme)"></td>
+    <td colspan="2"></td>
+  </tr>
+  <tr>
+    <td align="center">Settings (<code>S</code>) · Osaka Jade</td>
+    <td colspan="2"></td>
+  </tr>
 </table>
 
 - **Three panes** — parent, current folder, and a preview (yazi-style). `shift+←/→` resizes the preview, `p` hides it.
@@ -34,7 +52,10 @@ originally from [tideui](https://github.com/allisonhere/tideui) by [@allisonhere
   switch; each tab keeps its own folder, selection and history. Tabs are reopened next time, with the
   folder you start in as the active one (or only when no folder is given, or never — see settings).
 - **Settings page** — `S` lists every preference (tabs at startup, theme, hidden files, sort, preview
-  pane, word wrap, markdown, image previews); `←`/`→` change one, and it's saved straight away.
+  pane, word wrap, markdown, image previews, updates); `←`/`→` change one, and it's saved straight away.
+- **Keeps itself up to date** — release binaries check for a new version once a day, install it after
+  verifying its checksum, and ask before restarting (tabs come back). `U` does it by hand; see
+  [Updates](#install).
 - **Archives** — `enter` on a zip/tar/7z/rar browses it like a read-only folder (`←` leaves);
   `X` extracts archives here (into a folder named after the archive, unless it has a single
   top-level folder); `Z` compresses the selection into a `.zip` or `.tar.gz`. Reading uses `bsdtar`
