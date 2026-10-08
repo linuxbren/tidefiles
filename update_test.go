@@ -42,13 +42,24 @@ func TestNewerVersion(t *testing.T) {
 
 func TestDetectInstall(t *testing.T) {
 	writable := t.TempDir()
+	// A folder this user can't write (like a root-owned /usr/local/bin);
+	// root can write anywhere, so there it counts as writable.
+	locked := t.TempDir()
+	if err := os.Chmod(locked, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(locked, 0o755) })
+	lockedKind := installPackage
+	if os.Geteuid() == 0 {
+		lockedKind = installSelf
+	}
 	for _, c := range []struct {
 		name, exe, ld, bi string
 		want              installKind
 	}{
 		{"release in ~/.local/bin", filepath.Join(writable, "tidefiles"), "v0.7.0", "", installSelf},
 		{"package in /usr/bin", "/usr/bin/tidefiles", "v0.7.0", "", installPackage},
-		{"root-owned /usr/local/bin", "/usr/local/bin/tidefiles", "v0.7.0", "", installPackage},
+		{"folder the user can't write", filepath.Join(locked, "tidefiles"), "v0.7.0", "", lockedKind},
 		{"nix", "/nix/store/abc-tidefiles-0.7.0/bin/tidefiles", "v0.7.0", "", installNix},
 		{"go install", filepath.Join(writable, "tidefiles"), "", "v0.7.0", installGo},
 		{"local build", filepath.Join(writable, "tidefiles"), "", "v0.7.1-0.20261006041954-5f76a2df6047", installDev},

@@ -143,14 +143,15 @@ func detectInstall(exe, ldVersion, biVersion string) (installKind, string) {
 	case !releaseVersion.MatchString(ldVersion):
 		return installDev, ""
 	}
+	// A package's binary is never replaced, even by root, who can write there.
+	if strings.HasPrefix(exe, "/usr/bin/") {
+		if m, _ := filepath.Glob("/var/lib/pacman/local/tidefiles-*"); len(m) > 0 {
+			return installPackage, "rebuild the tidefiles package (makepkg, or your AUR helper)"
+		}
+		return installPackage, "install the new package from " + releasesPage
+	}
 	if unix.Access(filepath.Dir(exe), unix.W_OK) == nil {
 		return installSelf, ""
-	}
-	if m, _ := filepath.Glob("/var/lib/pacman/local/tidefiles-*"); len(m) > 0 {
-		return installPackage, "rebuild the tidefiles package (makepkg, or your AUR helper)"
-	}
-	if strings.HasPrefix(exe, "/usr/bin/") {
-		return installPackage, "install the new package from " + releasesPage
 	}
 	return installPackage, "download it again from " + releasesPage + " (" + filepath.Dir(exe) + " needs root)"
 }
